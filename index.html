@@ -15,6 +15,10 @@
   header { background:var(--verde); color:#fff; padding:14px 16px 12px; position:sticky; top:0; z-index:5; }
   header h1 { margin:0; font-size:19px; }
   #estado { font-size:13px; opacity:.9; margin-top:3px; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:12px 14px 2px; max-width:620px; margin:0 auto; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { white-space:nowrap; background:#fff; border:1px solid var(--borde); border-radius:20px; padding:9px 13px; font-size:14.5px; color:var(--texto); }
+  .chip.activo { background:var(--verde2); color:#fff; border-color:var(--verde2); font-weight:600; }
   main { padding:14px; max-width:620px; margin:0 auto; }
   .tarjeta { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:14px; margin-bottom:14px; }
   h2 { font-size:17px; margin:0 0 10px; }
@@ -23,7 +27,6 @@
   input, select, textarea { width:100%; font-size:17px; padding:11px 10px; border:1px solid var(--borde); border-radius:8px; background:#fff; color:var(--texto); }
   textarea { min-height:64px; resize:vertical; }
   .fila2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .fila2 label { margin-top:10px; }
   button { font-size:17px; border:0; border-radius:8px; padding:13px; cursor:pointer; }
   .btn-guardar { width:100%; background:var(--verde2); color:#fff; font-weight:700; margin-top:16px; }
   .btn-guardar:disabled { opacity:.6; }
@@ -40,8 +43,12 @@
   li .sub { color:#5b625a; font-size:13px; }
   li.pend { color:var(--ambar); }
   .vacio { color:#6b716a; font-size:14px; padding:6px 0; }
-  nav { position:fixed; bottom:0; left:0; right:0; display:grid; grid-template-columns:repeat(5,1fr); background:#fff; border-top:1px solid var(--borde); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
-  nav button { background:none; border-radius:0; padding:10px 1px 9px; font-size:11.5px; color:#555; line-height:1.2; }
+  table.stock { width:100%; border-collapse:collapse; font-size:14.5px; }
+  table.stock th, table.stock td { border-bottom:1px solid #eceeea; padding:7px 4px; text-align:left; }
+  table.stock td.n, table.stock th.n { text-align:right; }
+  table.stock td.neg { color:var(--rojo); font-weight:700; }
+  nav { position:fixed; bottom:0; left:0; right:0; display:grid; grid-template-columns:repeat(4,1fr); background:#fff; border-top:1px solid var(--borde); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+  nav button { background:none; border-radius:0; padding:10px 2px 9px; font-size:12.5px; color:#555; line-height:1.2; }
   nav button span { display:block; font-size:21px; margin-bottom:2px; }
   nav button.activo { color:var(--verde); font-weight:700; box-shadow:inset 0 3px 0 var(--verde2); }
 </style>
@@ -52,9 +59,17 @@
   <div id="estado">Revisando conexión…</div>
 </header>
 
+<div class="chips" id="chips"></div>
+
 <main>
   <div id="msg"></div>
   <form id="form" class="tarjeta" autocomplete="off" novalidate></form>
+  <div class="tarjeta" id="stockCard" style="display:none">
+    <div class="cab-lista">
+      <h2>📦 Stock actual de minitubérculos</h2>
+    </div>
+    <div id="stock"></div>
+  </div>
   <div class="tarjeta">
     <div class="cab-lista">
       <h2>Últimos registros</h2>
@@ -70,8 +85,9 @@
     </div>
     <label for="pdfQue">Incluir</label>
     <select id="pdfQue">
-      <option value="actual">Solo la pestaña actual</option>
-      <option value="todas">Todas las tablas</option>
+      <option value="actual">Solo este registro</option>
+      <option value="area">Toda esta área</option>
+      <option value="todas">Todo (todas las áreas)</option>
     </select>
     <button class="btn-guardar" id="btnPdf" type="button">Descargar PDF</button>
   </div>
@@ -85,20 +101,45 @@ const SB_URL = 'https://gdrnstimuliiyxsmvujq.supabase.co';
 const SB_KEY = 'sb_publishable_3Ox4PASAN0vgxZdWrUWz9Q_Yt0akP5X';
 
 // ===== Definición de cada registro =====
-// c = columna en la nube, l = etiqueta, t = tipo, req = obligatorio, rec = recuerda valores anteriores
-const TABLAS = {
-  temperaturas: {
-    titulo: 'Temperatura', icono: '🌡️', tituloPdf: 'Temperaturas', campoFecha: 'fecha_hora',
+// c = columna en la nube, l = etiqueta, t = tipo, req = obligatorio, rec = recuerda valores anteriores,
+// op = opciones (lista), def = valor por defecto, par = dos campos en la misma fila
+// Las 3 temperaturas se guardan en la misma tabla "temperaturas", separadas por tipo_lugar
+function turnoAhora() { return new Date().getHours() < 13 ? 'Mañana' : 'Tarde'; }
+function tablaTemp(tipo, titulo, icono, tituloPdf, campoLugar) {
+  return {
+    titulo, icono, tituloPdf, campoFecha: 'fecha_hora', fuente: 'temperaturas', fijo: { tipo_lugar: tipo },
     campos: [
       { c:'fecha_hora', l:'Fecha y hora', t:'datetime-local', ahora:true },
-      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true },
-      { c:'sensor', l:'Sensor', t:'text', rec:true, ph:'Manual' },
+      { c:'turno', l:'Turno', t:'select', req:true, op:['Mañana','Tarde'], defFn: turnoAhora },
+      campoLugar,
       { c:'temperatura', l:'Temperatura (°C)', t:'number', step:'0.1', req:true, par:'a' },
       { c:'humedad', l:'Humedad (%)', t:'number', step:'0.1', par:'a' },
+      { c:'sensor', l:'Sensor', t:'text', rec:true, ph:'Manual' },
       { c:'nota', l:'Nota', t:'textarea' }
     ],
-    resumen: r => [fechaHora(r.fecha_hora), r.invernadero, val(r.temperatura,' °C'), val(r.humedad,' % HR')],
+    resumen: r => [fechaHora(r.fecha_hora), r.turno, r.invernadero, val(r.temperatura,' °C'), val(r.humedad,' % HR')],
     detalle: r => [r.sensor, r.nota]
+  };
+}
+
+const TABLAS = {
+  // ---------- INVERNADERO ----------
+  temp_invernadero: tablaTemp('Invernadero', 'Temp. invernadero', '🌡️', 'Temperaturas de invernaderos',
+    { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, ph:'Ej: Invernadero 1' }),
+  clima_exterior: {
+    titulo: 'Clima exterior', icono: '⛅', tituloPdf: 'Clima exterior diario (Purranque)', campoFecha: 'fecha', soloLectura: true,
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date' },
+      { c:'temp_max', l:'T máx (°C)', t:'number' },
+      { c:'temp_min', l:'T mín (°C)', t:'number' },
+      { c:'temp_media', l:'T media (°C)', t:'number' },
+      { c:'humedad_max', l:'HR máx (%)', t:'number' },
+      { c:'humedad_min', l:'HR mín (%)', t:'number' },
+      { c:'humedad_media', l:'HR media (%)', t:'number' },
+      { c:'lluvia_mm', l:'Lluvia (mm)', t:'number' }
+    ],
+    resumen: r => [fecha(r.fecha), `${num(r.temp_min)} a ${num(r.temp_max)} °C`, `HR media ${num(r.humedad_media)} %`, Number(r.lluvia_mm) ? num(r.lluvia_mm) + ' mm lluvia' : 'sin lluvia'],
+    detalle: r => [`T media ${num(r.temp_media)} °C`, `HR ${num(r.humedad_min)} a ${num(r.humedad_max)} %`]
   },
   aplicaciones: {
     titulo: 'Aplicación', icono: '🧪', tituloPdf: 'Aplicaciones en invernaderos', campoFecha: 'fecha',
@@ -110,12 +151,42 @@ const TABLAS = {
       { c:'ingrediente_activo', l:'Ingrediente activo', t:'text', rec:true },
       { c:'dosis', l:'Dosis', t:'text', ph:'Ej: 30 cc / 15 L', rec:true, par:'b' },
       { c:'agua_litros', l:'Agua (L)', t:'number', step:'0.1', par:'b' },
-      { c:'objetivo', l:'Objetivo', t:'text', ph:'Ej: botritis, pulgón, fertilización', rec:true },
+      { c:'objetivo', l:'Objetivo', t:'text', ph:'Ej: botritis, pulgón', rec:true },
       { c:'operario', l:'Operario', t:'text', rec:true },
       { c:'observaciones', l:'Observaciones', t:'textarea' }
     ],
     resumen: r => [fecha(r.fecha), r.invernadero, r.producto, r.dosis],
     detalle: r => [r.camas ? 'Camas ' + r.camas : '', r.objetivo, r.operario, r.observaciones]
+  },
+  desinfecciones: {
+    titulo: 'Desinfección', icono: '🧴', tituloPdf: 'Desinfecciones', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'sector', l:'Sector', t:'select', req:true, op:['Exterior / pasillos','Interior / pasillos','Interior invernadero','Laboratorio','Bodega','Otro'] },
+      { c:'lugar', l:'Lugar', t:'text', rec:true, ph:'Ej: Invernadero 1' },
+      { c:'producto', l:'Producto', t:'text', req:true, rec:true },
+      { c:'dosis', l:'Dosis', t:'text', rec:true, ph:'Ej: 50 cc / bomba 15 L', par:'a' },
+      { c:'bombas', l:'N° de bombas', t:'number', step:'1', par:'a' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.sector, r.producto, r.dosis],
+    detalle: r => [r.lugar, r.bombas ? r.bombas + ' bombas' : '', r.responsable, r.observaciones]
+  },
+  fertilizacion: {
+    titulo: 'Fertilización', icono: '🌾', tituloPdf: 'Fertilización', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
+      { c:'camas', l:'Camas', t:'text', ph:'Ej: 1 a 4', par:'a' },
+      { c:'producto', l:'Producto', t:'text', req:true, rec:true },
+      { c:'dosis', l:'Dosis', t:'text', rec:true, ph:'Ej: 3 g / L', par:'b' },
+      { c:'forma', l:'Forma', t:'select', op:['Al sustrato','Foliar','Fertirriego'], par:'b' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.invernadero, r.producto, r.dosis],
+    detalle: r => [r.camas ? 'Camas ' + r.camas : '', r.forma, r.responsable, r.observaciones]
   },
   plantacion: {
     titulo: 'Plantación', icono: '🌱', tituloPdf: 'Plantación en invernaderos', campoFecha: 'fecha',
@@ -134,10 +205,43 @@ const TABLAS = {
     resumen: r => [fecha(r.fecha), r.variedad, val(r.plantas,' plantas')],
     detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.generacion, r.lote ? 'Lote ' + r.lote : '', r.origen, r.responsable, r.observaciones]
   },
+  monitoreo: {
+    titulo: 'Monitoreo sanitario', icono: '🔍', tituloPdf: 'Monitoreo sanitario', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
+      { c:'cama', l:'Cama', t:'text', rec:true, par:'a' },
+      { c:'variedad', l:'Variedad', t:'text', rec:true },
+      { c:'problema', l:'Problema', t:'text', req:true, rec:true, ph:'Ej: botritis, pulgón, pecto' },
+      { c:'nivel', l:'Nivel', t:'select', req:true, op:['Bajo','Medio','Alto'], par:'b' },
+      { c:'plantas_afectadas', l:'Plantas afectadas', t:'number', step:'1', par:'b' },
+      { c:'accion', l:'Acción tomada', t:'text', rec:true },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.problema, r.nivel ? 'nivel ' + r.nivel.toLowerCase() : '', r.variedad],
+    detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.plantas_afectadas ? r.plantas_afectadas + ' plantas' : '', r.accion, r.responsable, r.observaciones]
+  },
+  riego: {
+    titulo: 'Riego y ventilación', icono: '💧', tituloPdf: 'Riego y ventilación', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true },
+      { c:'riego_minutos', l:'Riego (minutos)', t:'number', step:'1', par:'a' },
+      { c:'agua_litros', l:'Agua (L)', t:'number', step:'0.1', par:'a' },
+      { c:'laterales', l:'Laterales', t:'select', op:['Abiertos','Medio abiertos','Cerrados'], par:'b' },
+      { c:'temp_max', l:'Temp. máx (°C)', t:'number', step:'0.1', par:'b' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.invernadero, val(r.riego_minutos,' min riego'), r.laterales ? 'laterales ' + r.laterales.toLowerCase() : ''],
+    detalle: r => [val(r.agua_litros,' L'), val(r.temp_max,' °C máx'), r.responsable, r.observaciones]
+  },
   recuento_minis: {
     titulo: 'Recuento minis', icono: '🥔', tituloPdf: 'Recuento de minitubérculos', campoFecha: 'fecha',
     campos: [
       { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'etapa', l:'Etapa', t:'select', req:true, op:['Cosecha','Preselección','Selección final'] },
       { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
       { c:'cama', l:'Cama', t:'text', rec:true, par:'a' },
       { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
@@ -147,9 +251,12 @@ const TABLAS = {
       { c:'responsable', l:'Responsable', t:'text', rec:true },
       { c:'observaciones', l:'Observaciones', t:'textarea' }
     ],
-    resumen: r => [fecha(r.fecha), r.variedad, r.calibre ? 'cal. ' + r.calibre : '', val(r.cantidad,' un.')],
+    resumen: r => [fecha(r.fecha), r.etapa, r.variedad, r.calibre ? 'cal. ' + r.calibre : '', val(r.cantidad,' un.')],
     detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.generacion, r.responsable, r.observaciones]
   },
+  // ---------- LABORATORIO ----------
+  temp_crecimiento: tablaTemp('Cámara de crecimiento', 'Temp. cámara crecimiento', '🌡️', 'Temperaturas de cámara de crecimiento',
+    { c:'invernadero', l:'Cámara', t:'text', rec:true, def:'Cámara de crecimiento' }),
   repiques: {
     titulo: 'Repique', icono: '🧫', tituloPdf: 'Repiques de laboratorio', campoFecha: 'fecha',
     extraPdf: { antesDe: 'observaciones', campo: { c:'proxima_mantencion', l:'Próx. mantención', t:'date' } },
@@ -166,25 +273,135 @@ const TABLAS = {
     ],
     resumen: r => [fecha(r.fecha), r.variedad, val(r.tubos_repicados,' tubos'), r.tubos_contaminados ? r.tubos_contaminados + ' contam.' : ''],
     detalle: r => [r.lote ? 'Lote ' + r.lote : '', r.proxima_mantencion ? 'Próx. mantención ' + fecha(r.proxima_mantencion) : '', r.responsable, r.observaciones]
+  },
+  contaminacion: {
+    titulo: 'Contaminación', icono: '🦠', tituloPdf: 'Revisión de contaminación in vitro', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'lote', l:'Lote', t:'text', rec:true, par:'a' },
+      { c:'tubos_revisados', l:'Tubos revisados', t:'number', step:'1', req:true, par:'a' },
+      { c:'tubos_hongo', l:'Con hongo', t:'number', step:'1', def:'0', par:'b' },
+      { c:'tubos_bacteria', l:'Con bacteria', t:'number', step:'1', def:'0', par:'b' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.variedad, val(r.tubos_revisados,' revisados'), porcentaje(r)],
+    detalle: r => [r.lote ? 'Lote ' + r.lote : '', val(r.tubos_hongo,' hongo'), val(r.tubos_bacteria,' bacteria'), r.responsable, r.observaciones]
+  },
+  medios: {
+    titulo: 'Preparación de medios', icono: '⚗️', tituloPdf: 'Preparación de medios de cultivo', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'medio', l:'Medio', t:'text', req:true, rec:true, def:'MS + sorbitol + agar' },
+      { c:'volumen_litros', l:'Volumen (L)', t:'number', step:'0.01', par:'a' },
+      { c:'ph', l:'pH', t:'number', step:'0.01', par:'a' },
+      { c:'lote_medio', l:'Lote del medio', t:'text', rec:true, par:'b' },
+      { c:'tubos_preparados', l:'Tubos preparados', t:'number', step:'1', par:'b' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.medio, val(r.volumen_litros,' L'), r.ph != null ? 'pH ' + r.ph : ''],
+    detalle: r => [r.lote_medio ? 'Lote ' + r.lote_medio : '', val(r.tubos_preparados,' tubos'), r.responsable, r.observaciones]
+  },
+  equipos: {
+    titulo: 'Equipos', icono: '🔧', tituloPdf: 'Registro de equipos', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'equipo', l:'Equipo', t:'select', req:true, op:['Autoclave','Cabina de flujo laminar','Cámara de crecimiento','Cámara de frío','Balanza','pHmetro','Otro'] },
+      { c:'actividad', l:'Actividad', t:'select', req:true, op:['Uso','Limpieza','Mantención','Validación','Falla'] },
+      { c:'detalle', l:'Detalle', t:'text', ph:'Ej: 121 °C, 20 min' },
+      { c:'proxima_fecha', l:'Próxima fecha (mantención / validación)', t:'date' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.equipo, r.actividad],
+    detalle: r => [r.detalle, r.proxima_fecha ? 'Próxima: ' + fecha(r.proxima_fecha) : '', r.responsable, r.observaciones]
+  },
+  // ---------- BODEGA ----------
+  temp_frio: tablaTemp('Cámara de frío', 'Temp. cámara de frío', '❄️', 'Temperaturas de cámara de frío',
+    { c:'invernadero', l:'Cámara', t:'text', rec:true, def:'Cámara de frío' }),
+  ingresos_minis: {
+    titulo: 'Ingreso minis', icono: '📥', tituloPdf: 'Ingresos de minitubérculos a bodega', campoFecha: 'fecha', stock: true,
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'generacion', l:'Generación', t:'text', def:'G1', rec:true, par:'a' },
+      { c:'calibre', l:'Calibre', t:'text', req:true, rec:true, par:'a' },
+      { c:'cantidad', l:'Cantidad (unidades)', t:'number', step:'1', req:true },
+      { c:'origen', l:'Origen', t:'text', rec:true, def:'Cosecha invernadero' },
+      { c:'ubicacion', l:'Ubicación', t:'text', rec:true, ph:'Ej: Cámara de frío' },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.variedad, r.calibre ? 'cal. ' + r.calibre : '', val(r.cantidad,' un.')],
+    detalle: r => [r.generacion, r.origen, r.ubicacion, r.responsable, r.observaciones]
+  },
+  despachos: {
+    titulo: 'Despacho / salida', icono: '🚚', tituloPdf: 'Despachos y salidas de minitubérculos', campoFecha: 'fecha', stock: true,
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'numero_guia', l:'N° de guía', t:'text', par:'a' },
+      { c:'destino', l:'Destino', t:'text', req:true, rec:true, ph:'Plantación, cliente, descarte', par:'a' },
+      { c:'retira', l:'Retira', t:'text', rec:true },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'generacion', l:'Generación', t:'text', def:'G1', rec:true, par:'b' },
+      { c:'calibre', l:'Calibre', t:'text', req:true, rec:true, par:'b' },
+      { c:'cantidad', l:'Cantidad (unidades)', t:'number', step:'1', req:true },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.numero_guia ? 'Guía ' + r.numero_guia : '', r.destino, r.variedad, val(r.cantidad,' un.')],
+    detalle: r => [r.calibre ? 'cal. ' + r.calibre : '', r.generacion, r.retira ? 'Retira ' + r.retira : '', r.responsable, r.observaciones]
+  },
+  // ---------- BITÁCORA ----------
+  bitacora: {
+    titulo: 'Bitácora', icono: '📝', tituloPdf: 'Bitácora de actividades', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'area', l:'Área', t:'select', req:true, op:['Invernadero','Laboratorio','Bodega','Oficina','Campo','Otro'] },
+      { c:'actividad', l:'Actividad', t:'textarea', req:true },
+      { c:'personas', l:'Personas', t:'text', rec:true, ph:'Quiénes participaron' },
+      { c:'horas', l:'Horas', t:'number', step:'0.5' },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.area, r.actividad],
+    detalle: r => [r.personas, val(r.horas,' h'), r.observaciones]
   }
+};
+
+const AREAS = {
+  invernadero: { titulo:'Invernadero', icono:'🌿', tablas:['temp_invernadero','clima_exterior','aplicaciones','desinfecciones','fertilizacion','plantacion','monitoreo','riego','recuento_minis'] },
+  laboratorio: { titulo:'Laboratorio', icono:'🔬', tablas:['temp_crecimiento','repiques','contaminacion','medios','equipos'] },
+  bodega:      { titulo:'Bodega',      icono:'📦', tablas:['temp_frio','ingresos_minis','despachos'] },
+  bitacora:    { titulo:'Bitácora',    icono:'📝', tablas:['bitacora'] }
 };
 
 // ===== Utilidades =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const val = (v, u) => (v === null || v === undefined || v === '') ? '' : v + u;
+const num = v => (v === null || v === undefined) ? '-' : Number(v).toLocaleString('es-CL');
 const dos = n => String(n).padStart(2, '0');
 function fecha(s) { if (!s) return ''; const [a,m,d] = String(s).slice(0,10).split('-'); return `${d}-${m}-${a}`; }
 function fechaHora(s) { if (!s) return ''; const d = new Date(s); return `${dos(d.getDate())}-${dos(d.getMonth()+1)} ${dos(d.getHours())}:${dos(d.getMinutes())}`; }
 function hoyISO() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth()+1)}-${dos(d.getDate())}`; }
 function ahoraLocal() { const d = new Date(); return `${hoyISO()}T${dos(d.getHours())}:${dos(d.getMinutes())}`; }
+function porcentaje(r) {
+  const t = Number(r.tubos_revisados) || 0; if (!t) return '';
+  const c = (Number(r.tubos_hongo) || 0) + (Number(r.tubos_bacteria) || 0);
+  return (c / t * 100).toLocaleString('es-CL', { maximumFractionDigits: 1 }) + ' % contam.';
+}
 
-// Guardado local seguro (por si el teléfono no lo permite)
 function leerLocal(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } }
 function grabarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 
-let tablaActual = leerLocal('tablaActual', 'temperaturas');
-if (!TABLAS[tablaActual]) tablaActual = 'temperaturas';
+function fuente(k) { return TABLAS[k].fuente || k; }
+function filtroFijo(k) { const f = TABLAS[k].fijo || {}; return Object.entries(f).map(([c, v]) => `&${c}=eq.${encodeURIComponent(v)}`).join(''); }
+function areaDe(k) { return Object.keys(AREAS).find(a => AREAS[a].tablas.includes(k)); }
+let tablaActual = leerLocal('tablaActual', 'temp_invernadero');
+if (!TABLAS[tablaActual]) tablaActual = 'temp_invernadero';
+let areaActual = areaDe(tablaActual);
 
 function mensaje(texto, tipo) {
   const m = $('msg'); m.textContent = texto; m.className = tipo;
@@ -215,9 +432,10 @@ async function enviarPendientes() {
   const lista = pendientes(); if (!lista.length) return;
   enviando = true;
   const quedan = [];
-  for (const p of lista) {
+  for (let i = 0; i < lista.length; i++) {
+    const p = lista[i];
     try { await nube(p.tabla, { method:'POST', headers:{ Prefer:'return=minimal' }, body: JSON.stringify(p.datos) }); }
-    catch (e) { quedan.push(p); if (!e.servidor) { quedan.push(...lista.slice(lista.indexOf(p) + 1)); break; } }
+    catch (e) { quedan.push(p); if (!e.servidor) { quedan.push(...lista.slice(i + 1)); break; } }
   }
   grabarLocal('pendientes', quedan);
   enviando = false;
@@ -228,20 +446,29 @@ async function enviarPendientes() {
 
 // ===== Pantalla =====
 function dibujarNav() {
-  $('nav').innerHTML = Object.entries(TABLAS).map(([k, t]) =>
-    `<button type="button" data-t="${k}" class="${k === tablaActual ? 'activo' : ''}"><span>${t.icono}</span>${t.titulo}</button>`).join('');
-  $('nav').querySelectorAll('button').forEach(b => b.onclick = () => cambiarTabla(b.dataset.t));
+  $('nav').innerHTML = Object.entries(AREAS).map(([k, a]) =>
+    `<button type="button" data-a="${k}" class="${k === areaActual ? 'activo' : ''}"><span>${a.icono}</span>${a.titulo}</button>`).join('');
+  $('nav').querySelectorAll('button').forEach(b => b.onclick = () => cambiarArea(b.dataset.a));
+}
+function dibujarChips() {
+  const tablas = AREAS[areaActual].tablas;
+  $('chips').style.display = tablas.length > 1 ? 'flex' : 'none';
+  $('chips').innerHTML = tablas.map(k =>
+    `<button type="button" class="chip ${k === tablaActual ? 'activo' : ''}" data-t="${k}">${TABLAS[k].icono} ${TABLAS[k].titulo}</button>`).join('');
+  $('chips').querySelectorAll('button').forEach(b => b.onclick = () => cambiarTabla(b.dataset.t));
+  const act = $('chips').querySelector('.activo'); if (act && act.scrollIntoView) act.scrollIntoView({ inline:'center', block:'nearest' });
 }
 
 function campoHTML(f) {
   const recuerdos = leerLocal('rec_' + f.c, []);
   const dl = f.rec && recuerdos.length ? `<datalist id="dl_${f.c}">${recuerdos.map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '';
-  let valor = f.def || '';
+  let valor = f.defFn ? f.defFn() : (f.def || '');
   if (f.hoy) valor = hoyISO();
   if (f.ahora) valor = ahoraLocal();
   const comunes = `id="f_${f.c}" name="${f.c}" ${f.req ? 'required' : ''} placeholder="${esc(f.ph || '')}"`;
   let input;
   if (f.t === 'textarea') input = `<textarea ${comunes}></textarea>`;
+  else if (f.t === 'select') input = `<select id="f_${f.c}" name="${f.c}"><option value="">— Elegir —</option>${f.op.map(o => `<option${o === valor ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   else if (f.t === 'number') input = `<input type="text" inputmode="${f.step === '1' ? 'numeric' : 'decimal'}" ${comunes} value="${esc(valor)}">`;
   else input = `<input type="${f.t}" ${comunes} value="${esc(valor)}" ${dl ? `list="dl_${f.c}"` : ''}>`;
   return `<div><label for="f_${f.c}">${esc(f.l)}${f.req ? ' <span class="req">*</span>' : ''}</label>${input}${dl}</div>`;
@@ -249,6 +476,10 @@ function campoHTML(f) {
 
 function dibujarForm() {
   const t = TABLAS[tablaActual];
+  if (t.soloLectura) {
+    $('form').innerHTML = `<h2>${t.icono} ${t.titulo}</h2><div class="vacio">Datos diarios automáticos (Open-Meteo, coordenadas de Purranque). Se actualizan solos cada vez que se abre la app; no hay que anotar nada.</div>`;
+    return;
+  }
   let html = `<h2>${t.icono} Nuevo registro: ${t.titulo}</h2>`;
   const campos = t.campos;
   for (let i = 0; i < campos.length; i++) {
@@ -260,10 +491,15 @@ function dibujarForm() {
   $('form').innerHTML = html;
 }
 
+function cambiarArea(a) {
+  const ultima = leerLocal('ultima_' + a, AREAS[a].tablas[0]);
+  cambiarTabla(AREAS[a].tablas.includes(ultima) ? ultima : AREAS[a].tablas[0]);
+}
 function cambiarTabla(k) {
-  tablaActual = k; grabarLocal('tablaActual', k);
+  tablaActual = k; areaActual = areaDe(k);
+  grabarLocal('tablaActual', k); grabarLocal('ultima_' + areaActual, k);
   $('titulo').textContent = TABLAS[k].icono + ' ' + TABLAS[k].titulo;
-  dibujarNav(); dibujarForm(); cargarLista();
+  dibujarNav(); dibujarChips(); dibujarForm(); cargarLista();
   window.scrollTo(0, 0);
 }
 
@@ -273,12 +509,27 @@ function lineaHTML(t, r, pendiente) {
   return `<li class="${pendiente ? 'pend' : ''}">${pendiente ? '⏳ ' : ''}${res}${det ? `<div class="sub">${det}</div>` : ''}${pendiente ? '<div class="sub">Pendiente: se enviará cuando haya señal</div>' : ''}</li>`;
 }
 
+async function cargarStock() {
+  const card = $('stockCard');
+  if (!TABLAS[tablaActual].stock) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  try {
+    const filas = await nube('stock_minis?select=*') || [];
+    if (!filas.length) { $('stock').innerHTML = '<div class="vacio">Sin movimientos todavía.</div>'; return; }
+    $('stock').innerHTML = `<table class="stock"><tr><th>Variedad</th><th>Gen.</th><th>Calibre</th><th class="n">Stock</th></tr>` +
+      filas.map(r => `<tr><td>${esc(r.variedad)}</td><td>${esc(r.generacion)}</td><td>${esc(r.calibre)}</td><td class="n${r.stock < 0 ? ' neg' : ''}">${Number(r.stock).toLocaleString('es-CL')}</td></tr>`).join('') + '</table>';
+  } catch (e) {
+    $('stock').innerHTML = `<div class="vacio">${e.servidor ? 'Error al leer el stock.' : 'Sin conexión: no se puede mostrar el stock.'}</div>`;
+  }
+}
+
 async function cargarLista() {
   const k = tablaActual, t = TABLAS[k];
-  const pend = pendientes().filter(p => p.tabla === k).reverse();
+  cargarStock();
+  const pend = pendientes().filter(p => (p.vista || p.tabla) === k).reverse();
   let html = pend.map(p => lineaHTML(t, p.datos, true)).join('');
   try {
-    const filas = await nube(`${k}?select=*&order=id.desc&limit=20`);
+    const filas = await nube(`${fuente(k)}?select=*${filtroFijo(k)}&order=${t.campoFecha}.desc,id.desc&limit=20`);
     if (k !== tablaActual) return;
     html += (filas || []).map(r => lineaHTML(t, r, false)).join('');
     actualizarEstado(true);
@@ -295,7 +546,7 @@ async function cargarLista() {
 $('form').addEventListener('submit', async ev => {
   ev.preventDefault();
   const t = TABLAS[tablaActual];
-  const datos = {};
+  const datos = { ...(t.fijo || {}) };
   for (const f of t.campos) {
     const el = $('f_' + f.c);
     let v = el.value.trim();
@@ -308,14 +559,13 @@ $('form').addEventListener('submit', async ev => {
     if (f.t === 'datetime-local') v = new Date(v).toISOString();
     datos[f.c] = v;
   }
-  // Recordar valores para sugerirlos la próxima vez
   for (const f of t.campos) if (f.rec && typeof datos[f.c] === 'string') {
     const lista = leerLocal('rec_' + f.c, []).filter(x => x !== datos[f.c]);
     lista.unshift(datos[f.c]); grabarLocal('rec_' + f.c, lista.slice(0, 15));
   }
   const btn = $('btnGuardar'); btn.disabled = true; btn.textContent = 'Guardando…';
   try {
-    await nube(tablaActual, { method:'POST', headers:{ Prefer:'return=minimal' }, body: JSON.stringify(datos) });
+    await nube(fuente(tablaActual), { method:'POST', headers:{ Prefer:'return=minimal' }, body: JSON.stringify(datos) });
     mensaje('✅ Guardado en la nube.', 'ok');
     actualizarEstado(true);
     dibujarForm();
@@ -325,7 +575,7 @@ $('form').addEventListener('submit', async ev => {
       btn.disabled = false; btn.textContent = 'Guardar';
       return;
     }
-    const p = pendientes(); p.push({ tabla: tablaActual, datos }); grabarLocal('pendientes', p);
+    const p = pendientes(); p.push({ tabla: fuente(tablaActual), vista: tablaActual, datos }); grabarLocal('pendientes', p);
     mensaje('Sin señal: quedó guardado en el teléfono y se enviará solo cuando vuelva la conexión.', 'aviso');
     actualizarEstado(false);
     dibujarForm();
@@ -367,45 +617,58 @@ async function leerPeriodo(k, desde, hasta) {
   } else filtro = `${cf}=gte.${desde}&${cf}=lte.${hasta}`;
   let todas = [], off = 0;
   while (true) {
-    const filas = await nube(`${k}?select=*&${filtro}&order=${cf}.asc,id.asc&limit=1000&offset=${off}`) || [];
+    const filas = await nube(`${fuente(k)}?select=*&${filtro}${filtroFijo(k)}&order=${cf}.asc,id.asc&limit=1000&offset=${off}`) || [];
     todas = todas.concat(filas);
     if (filas.length < 1000) return todas;
     off += 1000;
   }
 }
+const ESTILO_PDF = {
+  theme: 'grid', margin: { left: 14, right: 14, bottom: 14 },
+  styles: { font: 'helvetica', fontSize: 8.5, textColor: 0, lineColor: 0, lineWidth: 0.2, cellPadding: 1.5, overflow: 'linebreak', fillColor: false },
+  headStyles: { fillColor: false, textColor: 0, fontStyle: 'bold' },
+  alternateRowStyles: { fillColor: false }
+};
+function tituloPdf(doc, titulo, linea2) {
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('INIA La Pampa - ' + titulo, 14, 15);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(linea2, 14, 21);
+}
 async function descargarPdf() {
   const desde = $('pdfDesde').value, hasta = $('pdfHasta').value;
   if (!desde || !hasta) { mensaje('Elige las fechas Desde y Hasta.', 'error'); return; }
   if (desde > hasta) { mensaje('La fecha Desde no puede ser posterior a Hasta.', 'error'); return; }
-  const tablas = $('pdfQue').value === 'todas' ? Object.keys(TABLAS) : [tablaActual];
+  const que = $('pdfQue').value;
+  const tablas = que === 'todas' ? Object.values(AREAS).flatMap(a => a.tablas) : que === 'area' ? AREAS[areaActual].tablas : [tablaActual];
   const btn = $('btnPdf'); btn.disabled = true; btn.textContent = 'Preparando PDF…';
   try {
     const jsPDF = await libreriaPdf();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    for (let i = 0; i < tablas.length; i++) {
-      const k = tablas[i], t = TABLAS[k], cols = columnasPdf(k);
+    let primera = true;
+    for (const k of tablas) {
+      const t = TABLAS[k], cols = columnasPdf(k);
       const filas = await leerPeriodo(k, desde, hasta);
-      if (i > 0) doc.addPage();
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-      doc.text('INIA La Pampa - ' + t.tituloPdf, 14, 15);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      doc.text(`Período: ${fecha(desde)} al ${fecha(hasta)}     Registros: ${filas.length}`, 14, 21);
+      if (!primera) doc.addPage(); primera = false;
+      tituloPdf(doc, t.tituloPdf, `Período: ${fecha(desde)} al ${fecha(hasta)}     Registros: ${filas.length}`);
       const cuerpo = filas.length ? filas.map(r => cols.map(f => textoPdf(r[f.c], f)))
                                   : [[{ content: 'Sin registros en este período', colSpan: cols.length }]];
-      doc.autoTable({
-        startY: 25, head: [cols.map(f => f.l)], body: cuerpo, theme: 'grid',
-        margin: { left: 14, right: 14, bottom: 14 },
-        styles: { font: 'helvetica', fontSize: 8.5, textColor: 0, lineColor: 0, lineWidth: 0.2, cellPadding: 1.5, overflow: 'linebreak', fillColor: false },
-        headStyles: { fillColor: false, textColor: 0, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: false }
-      });
+      doc.autoTable({ ...ESTILO_PDF, startY: 25, head: [cols.map(f => f.l)], body: cuerpo });
+    }
+    if (tablas.some(k => TABLAS[k].stock)) {
+      const stock = await nube('stock_minis?select=*') || [];
+      doc.addPage();
+      tituloPdf(doc, 'Stock de minitubérculos', `Stock al ${fechaHoraLarga(new Date().toISOString())} (ingresos menos despachos, todos los registros)`);
+      const cuerpo = stock.length ? stock.map(r => [r.variedad, r.generacion, r.calibre, Number(r.ingresado).toLocaleString('es-CL'), Number(r.despachado).toLocaleString('es-CL'), Number(r.stock).toLocaleString('es-CL')])
+                                  : [[{ content: 'Sin movimientos', colSpan: 6 }]];
+      doc.autoTable({ ...ESTILO_PDF, startY: 25, head: [['Variedad','Generación','Calibre','Ingresado','Despachado','Stock']], body: cuerpo });
     }
     const n = doc.getNumberOfPages(), hoy = fechaHoraLarga(new Date().toISOString());
     for (let p = 1; p <= n; p++) {
       doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
       doc.text(`Generado el ${hoy} - Página ${p} de ${n}`, 283, 203, { align: 'right' });
     }
-    const nombre = `registro-${tablas.length > 1 ? 'completo' : tablas[0]}-${desde}_${hasta}.pdf`;
+    const nombre = `registro-${que === 'todas' ? 'completo' : que === 'area' ? areaActual : tablaActual}-${desde}_${hasta}.pdf`;
     doc.save(nombre);
     mensaje('📄 PDF descargado: ' + nombre, 'ok');
   } catch (e) {
@@ -421,8 +684,30 @@ window.addEventListener('online', enviarPendientes);
 window.addEventListener('offline', () => actualizarEstado(false));
 setInterval(enviarPendientes, 60000);
 
+// ===== Clima exterior automático (Open-Meteo, Purranque) =====
+async function sincronizarClima() {
+  const hoy = hoyISO();
+  if (leerLocal('clima_sync', '') === hoy) return;
+  try {
+    const ult = await nube('clima_exterior?select=fecha&order=fecha.desc&limit=1') || [];
+    const dias = ult.length ? Math.round((new Date(hoy) - new Date(ult[0].fecha)) / 86400000) : 92;
+    if (dias <= 1) { grabarLocal('clima_sync', hoy); return; }
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=-40.91&longitude=-73.17&timezone=America%2FSantiago&forecast_days=1'
+      + `&past_days=${Math.min(92, dias + 1)}`
+      + '&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean,relative_humidity_2m_max,relative_humidity_2m_min,relative_humidity_2m_mean,precipitation_sum';
+    const d = (await (await fetch(url)).json()).daily;
+    const filas = d.time.map((f, i) => ({ fecha: f, temp_max: d.temperature_2m_max[i], temp_min: d.temperature_2m_min[i], temp_media: d.temperature_2m_mean[i],
+      humedad_max: d.relative_humidity_2m_max[i], humedad_min: d.relative_humidity_2m_min[i], humedad_media: d.relative_humidity_2m_mean[i], lluvia_mm: d.precipitation_sum[i] }))
+      .filter(x => x.fecha < hoy && x.temp_max !== null);
+    if (filas.length) await nube('clima_exterior?on_conflict=fecha', { method:'POST', headers:{ Prefer:'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify(filas) });
+    grabarLocal('clima_sync', hoy);
+    if (tablaActual === 'clima_exterior') cargarLista();
+  } catch {}
+}
+
 cambiarTabla(tablaActual);
 enviarPendientes();
+sincronizarClima();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
