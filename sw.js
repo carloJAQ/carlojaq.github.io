@@ -1,5 +1,5 @@
 // Permite abrir la app sin señal. Los datos van directo a la nube (no se guardan aquí).
-const CACHE = 'registro-lp-v1';
+const CACHE = 'registro-lp-v3';
 const ARCHIVOS = ['./', './index.html', './manifest.json', './icono-192.png', './icono-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

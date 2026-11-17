@@ -40,8 +40,8 @@
   li .sub { color:#5b625a; font-size:13px; }
   li.pend { color:var(--ambar); }
   .vacio { color:#6b716a; font-size:14px; padding:6px 0; }
-  nav { position:fixed; bottom:0; left:0; right:0; display:grid; grid-template-columns:repeat(4,1fr); background:#fff; border-top:1px solid var(--borde); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
-  nav button { background:none; border-radius:0; padding:10px 2px 9px; font-size:12.5px; color:#555; line-height:1.2; }
+  nav { position:fixed; bottom:0; left:0; right:0; display:grid; grid-template-columns:repeat(5,1fr); background:#fff; border-top:1px solid var(--borde); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+  nav button { background:none; border-radius:0; padding:10px 1px 9px; font-size:11.5px; color:#555; line-height:1.2; }
   nav button span { display:block; font-size:21px; margin-bottom:2px; }
   nav button.activo { color:var(--verde); font-weight:700; box-shadow:inset 0 3px 0 var(--verde2); }
 </style>
@@ -62,6 +62,19 @@
     </div>
     <ul id="lista"><li class="vacio">Cargando…</li></ul>
   </div>
+  <div class="tarjeta">
+    <h2>📄 Informe PDF</h2>
+    <div class="fila2">
+      <div><label for="pdfDesde">Desde</label><input type="date" id="pdfDesde"></div>
+      <div><label for="pdfHasta">Hasta</label><input type="date" id="pdfHasta"></div>
+    </div>
+    <label for="pdfQue">Incluir</label>
+    <select id="pdfQue">
+      <option value="actual">Solo la pestaña actual</option>
+      <option value="todas">Todas las tablas</option>
+    </select>
+    <button class="btn-guardar" id="btnPdf" type="button">Descargar PDF</button>
+  </div>
 </main>
 
 <nav id="nav"></nav>
@@ -75,7 +88,7 @@ const SB_KEY = 'sb_publishable_3Ox4PASAN0vgxZdWrUWz9Q_Yt0akP5X';
 // c = columna en la nube, l = etiqueta, t = tipo, req = obligatorio, rec = recuerda valores anteriores
 const TABLAS = {
   temperaturas: {
-    titulo: 'Temperatura', icono: '🌡️',
+    titulo: 'Temperatura', icono: '🌡️', tituloPdf: 'Temperaturas', campoFecha: 'fecha_hora',
     campos: [
       { c:'fecha_hora', l:'Fecha y hora', t:'datetime-local', ahora:true },
       { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true },
@@ -88,7 +101,7 @@ const TABLAS = {
     detalle: r => [r.sensor, r.nota]
   },
   aplicaciones: {
-    titulo: 'Aplicación', icono: '🧪',
+    titulo: 'Aplicación', icono: '🧪', tituloPdf: 'Aplicaciones en invernaderos', campoFecha: 'fecha',
     campos: [
       { c:'fecha', l:'Fecha', t:'date', hoy:true },
       { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
@@ -104,8 +117,25 @@ const TABLAS = {
     resumen: r => [fecha(r.fecha), r.invernadero, r.producto, r.dosis],
     detalle: r => [r.camas ? 'Camas ' + r.camas : '', r.objetivo, r.operario, r.observaciones]
   },
+  plantacion: {
+    titulo: 'Plantación', icono: '🌱', tituloPdf: 'Plantación en invernaderos', campoFecha: 'fecha',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
+      { c:'cama', l:'Cama', t:'text', rec:true, par:'a' },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'generacion', l:'Generación', t:'text', def:'G1', rec:true, par:'b' },
+      { c:'lote', l:'Lote', t:'text', rec:true, par:'b' },
+      { c:'plantas', l:'Plantas (unidades)', t:'number', step:'1', req:true },
+      { c:'origen', l:'Origen', t:'text', def:'Plantas SAH', rec:true },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.variedad, val(r.plantas,' plantas')],
+    detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.generacion, r.lote ? 'Lote ' + r.lote : '', r.origen, r.responsable, r.observaciones]
+  },
   recuento_minis: {
-    titulo: 'Recuento minis', icono: '🥔',
+    titulo: 'Recuento minis', icono: '🥔', tituloPdf: 'Recuento de minitubérculos', campoFecha: 'fecha',
     campos: [
       { c:'fecha', l:'Fecha', t:'date', hoy:true },
       { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
@@ -121,7 +151,8 @@ const TABLAS = {
     detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.generacion, r.responsable, r.observaciones]
   },
   repiques: {
-    titulo: 'Repique', icono: '🧫',
+    titulo: 'Repique', icono: '🧫', tituloPdf: 'Repiques de laboratorio', campoFecha: 'fecha',
+    extraPdf: { antesDe: 'observaciones', campo: { c:'proxima_mantencion', l:'Próx. mantención', t:'date' } },
     campos: [
       { c:'fecha', l:'Fecha', t:'date', hoy:true },
       { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
@@ -301,6 +332,89 @@ $('form').addEventListener('submit', async ev => {
   }
   cargarLista();
 });
+
+// ===== Informe PDF =====
+const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+const AUTOTABLE_URL = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+function cargarScript(src) {
+  return new Promise((ok, err) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => err(new Error('sin conexión')); document.head.appendChild(s); });
+}
+async function libreriaPdf() {
+  if (!window.jspdf) await cargarScript(JSPDF_URL);
+  if (!window.jspdf.jsPDF.API.autoTable) await cargarScript(AUTOTABLE_URL);
+  return window.jspdf.jsPDF;
+}
+function fechaHoraLarga(s) { if (!s) return ''; const d = new Date(s); return `${dos(d.getDate())}-${dos(d.getMonth()+1)}-${d.getFullYear()} ${dos(d.getHours())}:${dos(d.getMinutes())}`; }
+function textoPdf(v, f) {
+  if (v === null || v === undefined || v === '') return '';
+  if (f.t === 'date') return fecha(v);
+  if (f.t === 'datetime-local') return fechaHoraLarga(v);
+  if (f.t === 'number') return Number(v).toLocaleString('es-CL');
+  return String(v);
+}
+function columnasPdf(k) {
+  const t = TABLAS[k]; const cols = t.campos.slice();
+  if (t.extraPdf) { const i = cols.findIndex(f => f.c === t.extraPdf.antesDe); cols.splice(i < 0 ? cols.length : i, 0, t.extraPdf.campo); }
+  return cols;
+}
+async function leerPeriodo(k, desde, hasta) {
+  const cf = TABLAS[k].campoFecha;
+  let filtro;
+  if (cf === 'fecha_hora') {
+    const ini = new Date(desde + 'T00:00').toISOString();
+    const fin = new Date(new Date(hasta + 'T00:00').getTime() + 86400000).toISOString();
+    filtro = `fecha_hora=gte.${encodeURIComponent(ini)}&fecha_hora=lt.${encodeURIComponent(fin)}`;
+  } else filtro = `${cf}=gte.${desde}&${cf}=lte.${hasta}`;
+  let todas = [], off = 0;
+  while (true) {
+    const filas = await nube(`${k}?select=*&${filtro}&order=${cf}.asc,id.asc&limit=1000&offset=${off}`) || [];
+    todas = todas.concat(filas);
+    if (filas.length < 1000) return todas;
+    off += 1000;
+  }
+}
+async function descargarPdf() {
+  const desde = $('pdfDesde').value, hasta = $('pdfHasta').value;
+  if (!desde || !hasta) { mensaje('Elige las fechas Desde y Hasta.', 'error'); return; }
+  if (desde > hasta) { mensaje('La fecha Desde no puede ser posterior a Hasta.', 'error'); return; }
+  const tablas = $('pdfQue').value === 'todas' ? Object.keys(TABLAS) : [tablaActual];
+  const btn = $('btnPdf'); btn.disabled = true; btn.textContent = 'Preparando PDF…';
+  try {
+    const jsPDF = await libreriaPdf();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    for (let i = 0; i < tablas.length; i++) {
+      const k = tablas[i], t = TABLAS[k], cols = columnasPdf(k);
+      const filas = await leerPeriodo(k, desde, hasta);
+      if (i > 0) doc.addPage();
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+      doc.text('INIA La Pampa - ' + t.tituloPdf, 14, 15);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.text(`Período: ${fecha(desde)} al ${fecha(hasta)}     Registros: ${filas.length}`, 14, 21);
+      const cuerpo = filas.length ? filas.map(r => cols.map(f => textoPdf(r[f.c], f)))
+                                  : [[{ content: 'Sin registros en este período', colSpan: cols.length }]];
+      doc.autoTable({
+        startY: 25, head: [cols.map(f => f.l)], body: cuerpo, theme: 'grid',
+        margin: { left: 14, right: 14, bottom: 14 },
+        styles: { font: 'helvetica', fontSize: 8.5, textColor: 0, lineColor: 0, lineWidth: 0.2, cellPadding: 1.5, overflow: 'linebreak', fillColor: false },
+        headStyles: { fillColor: false, textColor: 0, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: false }
+      });
+    }
+    const n = doc.getNumberOfPages(), hoy = fechaHoraLarga(new Date().toISOString());
+    for (let p = 1; p <= n; p++) {
+      doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      doc.text(`Generado el ${hoy} - Página ${p} de ${n}`, 283, 203, { align: 'right' });
+    }
+    const nombre = `registro-${tablas.length > 1 ? 'completo' : tablas[0]}-${desde}_${hasta}.pdf`;
+    doc.save(nombre);
+    mensaje('📄 PDF descargado: ' + nombre, 'ok');
+  } catch (e) {
+    mensaje(e.servidor ? 'Error al leer los datos: ' + e.message : 'Para descargar el PDF se necesita conexión a internet.', 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Descargar PDF';
+}
+(() => { const d = new Date(); $('pdfDesde').value = `${d.getFullYear()}-${dos(d.getMonth()+1)}-01`; $('pdfHasta').value = hoyISO(); })();
+$('btnPdf').onclick = descargarPdf;
 
 $('btnRecargar').onclick = () => { enviarPendientes(); cargarLista(); };
 window.addEventListener('online', enviarPendientes);
