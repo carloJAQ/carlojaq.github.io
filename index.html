@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3d2b">
+<title>Registro La Pampa</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-192.png">
+<style>
+  :root { --verde:#1f3d2b; --verde2:#2e5a3f; --gris:#f2f3f1; --borde:#cfd4cd; --texto:#1c1c1c; --rojo:#a12a2a; --ambar:#8a5a00; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Roboto,sans-serif; color:var(--texto); background:var(--gris); padding-bottom:76px; }
+  header { background:var(--verde); color:#fff; padding:14px 16px 12px; position:sticky; top:0; z-index:5; }
+  header h1 { margin:0; font-size:19px; }
+  #estado { font-size:13px; opacity:.9; margin-top:3px; }
+  main { padding:14px; max-width:620px; margin:0 auto; }
+  .tarjeta { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:14px; margin-bottom:14px; }
+  h2 { font-size:17px; margin:0 0 10px; }
+  label { display:block; font-size:14px; font-weight:600; margin:10px 0 4px; }
+  label .req { color:var(--rojo); }
+  input, select, textarea { width:100%; font-size:17px; padding:11px 10px; border:1px solid var(--borde); border-radius:8px; background:#fff; color:var(--texto); }
+  textarea { min-height:64px; resize:vertical; }
+  .fila2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fila2 label { margin-top:10px; }
+  button { font-size:17px; border:0; border-radius:8px; padding:13px; cursor:pointer; }
+  .btn-guardar { width:100%; background:var(--verde2); color:#fff; font-weight:700; margin-top:16px; }
+  .btn-guardar:disabled { opacity:.6; }
+  .btn-sec { background:#e3e7e1; color:var(--texto); padding:8px 12px; font-size:14px; }
+  #msg { display:none; padding:11px 12px; border-radius:8px; margin-bottom:12px; font-size:15px; }
+  #msg.ok { display:block; background:#e2f1e6; border:1px solid #9cc9a8; }
+  #msg.aviso { display:block; background:#fff4dc; border:1px solid #e6c578; color:var(--ambar); }
+  #msg.error { display:block; background:#fbe5e5; border:1px solid #e0a3a3; color:var(--rojo); }
+  .cab-lista { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .cab-lista h2 { margin:0; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { padding:9px 0; border-bottom:1px solid #eceeea; font-size:14.5px; line-height:1.35; }
+  li:last-child { border-bottom:0; }
+  li .sub { color:#5b625a; font-size:13px; }
+  li.pend { color:var(--ambar); }
+  .vacio { color:#6b716a; font-size:14px; padding:6px 0; }
+  nav { position:fixed; bottom:0; left:0; right:0; display:grid; grid-template-columns:repeat(4,1fr); background:#fff; border-top:1px solid var(--borde); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+  nav button { background:none; border-radius:0; padding:10px 2px 9px; font-size:12.5px; color:#555; line-height:1.2; }
+  nav button span { display:block; font-size:21px; margin-bottom:2px; }
+  nav button.activo { color:var(--verde); font-weight:700; box-shadow:inset 0 3px 0 var(--verde2); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titulo">Registro La Pampa</h1>
+  <div id="estado">Revisando conexión…</div>
+</header>
+
+<main>
+  <div id="msg"></div>
+  <form id="form" class="tarjeta" autocomplete="off" novalidate></form>
+  <div class="tarjeta">
+    <div class="cab-lista">
+      <h2>Últimos registros</h2>
+      <button class="btn-sec" id="btnRecargar" type="button">Actualizar</button>
+    </div>
+    <ul id="lista"><li class="vacio">Cargando…</li></ul>
+  </div>
+</main>
+
+<nav id="nav"></nav>
+
+<script>
+// ===== Conexión a la nube (Supabase) =====
+const SB_URL = 'https://gdrnstimuliiyxsmvujq.supabase.co';
+const SB_KEY = 'sb_publishable_3Ox4PASAN0vgxZdWrUWz9Q_Yt0akP5X';
+
+// ===== Definición de cada registro =====
+// c = columna en la nube, l = etiqueta, t = tipo, req = obligatorio, rec = recuerda valores anteriores
+const TABLAS = {
+  temperaturas: {
+    titulo: 'Temperatura', icono: '🌡️',
+    campos: [
+      { c:'fecha_hora', l:'Fecha y hora', t:'datetime-local', ahora:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true },
+      { c:'sensor', l:'Sensor', t:'text', rec:true, ph:'Manual' },
+      { c:'temperatura', l:'Temperatura (°C)', t:'number', step:'0.1', req:true, par:'a' },
+      { c:'humedad', l:'Humedad (%)', t:'number', step:'0.1', par:'a' },
+      { c:'nota', l:'Nota', t:'textarea' }
+    ],
+    resumen: r => [fechaHora(r.fecha_hora), r.invernadero, val(r.temperatura,' °C'), val(r.humedad,' % HR')],
+    detalle: r => [r.sensor, r.nota]
+  },
+  aplicaciones: {
+    titulo: 'Aplicación', icono: '🧪',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
+      { c:'camas', l:'Camas', t:'text', ph:'Ej: 1 a 4', par:'a' },
+      { c:'producto', l:'Producto', t:'text', req:true, rec:true },
+      { c:'ingrediente_activo', l:'Ingrediente activo', t:'text', rec:true },
+      { c:'dosis', l:'Dosis', t:'text', ph:'Ej: 30 cc / 15 L', rec:true, par:'b' },
+      { c:'agua_litros', l:'Agua (L)', t:'number', step:'0.1', par:'b' },
+      { c:'objetivo', l:'Objetivo', t:'text', ph:'Ej: botritis, pulgón, fertilización', rec:true },
+      { c:'operario', l:'Operario', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.invernadero, r.producto, r.dosis],
+    detalle: r => [r.camas ? 'Camas ' + r.camas : '', r.objetivo, r.operario, r.observaciones]
+  },
+  recuento_minis: {
+    titulo: 'Recuento minis', icono: '🥔',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'invernadero', l:'Invernadero', t:'text', req:true, rec:true, par:'a' },
+      { c:'cama', l:'Cama', t:'text', rec:true, par:'a' },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'generacion', l:'Generación', t:'text', def:'G1', rec:true, par:'b' },
+      { c:'calibre', l:'Calibre', t:'text', rec:true, par:'b' },
+      { c:'cantidad', l:'Cantidad (unidades)', t:'number', step:'1', req:true },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.variedad, r.calibre ? 'cal. ' + r.calibre : '', val(r.cantidad,' un.')],
+    detalle: r => [r.invernadero, r.cama ? 'cama ' + r.cama : '', r.generacion, r.responsable, r.observaciones]
+  },
+  repiques: {
+    titulo: 'Repique', icono: '🧫',
+    campos: [
+      { c:'fecha', l:'Fecha', t:'date', hoy:true },
+      { c:'variedad', l:'Variedad', t:'text', req:true, rec:true },
+      { c:'lote', l:'Lote', t:'text', rec:true },
+      { c:'tubos_origen', l:'Tubos origen', t:'number', step:'1', par:'a' },
+      { c:'tubos_repicados', l:'Tubos repicados', t:'number', step:'1', req:true, par:'a' },
+      { c:'tubos_contaminados', l:'Tubos contaminados', t:'number', step:'1', def:'0' },
+      { c:'medio', l:'Medio', t:'text', def:'MS + sorbitol + agar', rec:true },
+      { c:'responsable', l:'Responsable', t:'text', rec:true },
+      { c:'observaciones', l:'Observaciones', t:'textarea' }
+    ],
+    resumen: r => [fecha(r.fecha), r.variedad, val(r.tubos_repicados,' tubos'), r.tubos_contaminados ? r.tubos_contaminados + ' contam.' : ''],
+    detalle: r => [r.lote ? 'Lote ' + r.lote : '', r.proxima_mantencion ? 'Próx. mantención ' + fecha(r.proxima_mantencion) : '', r.responsable, r.observaciones]
+  }
+};
+
+// ===== Utilidades =====
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const val = (v, u) => (v === null || v === undefined || v === '') ? '' : v + u;
+const dos = n => String(n).padStart(2, '0');
+function fecha(s) { if (!s) return ''; const [a,m,d] = String(s).slice(0,10).split('-'); return `${d}-${m}-${a}`; }
+function fechaHora(s) { if (!s) return ''; const d = new Date(s); return `${dos(d.getDate())}-${dos(d.getMonth()+1)} ${dos(d.getHours())}:${dos(d.getMinutes())}`; }
+function hoyISO() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth()+1)}-${dos(d.getDate())}`; }
+function ahoraLocal() { const d = new Date(); return `${hoyISO()}T${dos(d.getHours())}:${dos(d.getMinutes())}`; }
+
+// Guardado local seguro (por si el teléfono no lo permite)
+function leerLocal(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } }
+function grabarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+let tablaActual = leerLocal('tablaActual', 'temperaturas');
+if (!TABLAS[tablaActual]) tablaActual = 'temperaturas';
+
+function mensaje(texto, tipo) {
+  const m = $('msg'); m.textContent = texto; m.className = tipo;
+  clearTimeout(mensaje.t); mensaje.t = setTimeout(() => { m.className = ''; }, 6000);
+}
+
+// ===== Nube =====
+async function nube(ruta, opciones = {}) {
+  const r = await fetch(SB_URL + '/rest/v1/' + ruta, {
+    ...opciones,
+    headers: { apikey: SB_KEY, 'Content-Type': 'application/json', ...(opciones.headers || {}) }
+  });
+  if (!r.ok) { const t = await r.text(); const e = new Error(t || ('Error ' + r.status)); e.servidor = true; throw e; }
+  return r.status === 204 ? null : r.json().catch(() => null);
+}
+
+// ===== Pendientes (sin señal) =====
+function pendientes() { return leerLocal('pendientes', []); }
+function actualizarEstado(online) {
+  const n = pendientes().length;
+  let t = online === false ? '⚠️ Sin conexión' : (online ? '✅ Conectado a la nube' : 'Revisando conexión…');
+  if (n) t += ` · ${n} pendiente${n > 1 ? 's' : ''} por enviar`;
+  $('estado').textContent = t;
+}
+let enviando = false;
+async function enviarPendientes() {
+  if (enviando) return;
+  const lista = pendientes(); if (!lista.length) return;
+  enviando = true;
+  const quedan = [];
+  for (const p of lista) {
+    try { await nube(p.tabla, { method:'POST', headers:{ Prefer:'return=minimal' }, body: JSON.stringify(p.datos) }); }
+    catch (e) { quedan.push(p); if (!e.servidor) { quedan.push(...lista.slice(lista.indexOf(p) + 1)); break; } }
+  }
+  grabarLocal('pendientes', quedan);
+  enviando = false;
+  const enviados = lista.length - quedan.length;
+  if (enviados) { mensaje(`Se enviaron ${enviados} registro${enviados > 1 ? 's' : ''} pendiente${enviados > 1 ? 's' : ''} a la nube.`, 'ok'); cargarLista(); }
+  actualizarEstado(quedan.length < lista.length || navigator.onLine);
+}
+
+// ===== Pantalla =====
+function dibujarNav() {
+  $('nav').innerHTML = Object.entries(TABLAS).map(([k, t]) =>
+    `<button type="button" data-t="${k}" class="${k === tablaActual ? 'activo' : ''}"><span>${t.icono}</span>${t.titulo}</button>`).join('');
+  $('nav').querySelectorAll('button').forEach(b => b.onclick = () => cambiarTabla(b.dataset.t));
+}
+
+function campoHTML(f) {
+  const recuerdos = leerLocal('rec_' + f.c, []);
+  const dl = f.rec && recuerdos.length ? `<datalist id="dl_${f.c}">${recuerdos.map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '';
+  let valor = f.def || '';
+  if (f.hoy) valor = hoyISO();
+  if (f.ahora) valor = ahoraLocal();
+  const comunes = `id="f_${f.c}" name="${f.c}" ${f.req ? 'required' : ''} placeholder="${esc(f.ph || '')}"`;
+  let input;
+  if (f.t === 'textarea') input = `<textarea ${comunes}></textarea>`;
+  else if (f.t === 'number') input = `<input type="text" inputmode="${f.step === '1' ? 'numeric' : 'decimal'}" ${comunes} value="${esc(valor)}">`;
+  else input = `<input type="${f.t}" ${comunes} value="${esc(valor)}" ${dl ? `list="dl_${f.c}"` : ''}>`;
+  return `<div><label for="f_${f.c}">${esc(f.l)}${f.req ? ' <span class="req">*</span>' : ''}</label>${input}${dl}</div>`;
+}
+
+function dibujarForm() {
+  const t = TABLAS[tablaActual];
+  let html = `<h2>${t.icono} Nuevo registro: ${t.titulo}</h2>`;
+  const campos = t.campos;
+  for (let i = 0; i < campos.length; i++) {
+    const f = campos[i], g = campos[i + 1];
+    if (f.par && g && g.par === f.par) { html += `<div class="fila2">${campoHTML(f)}${campoHTML(g)}</div>`; i++; }
+    else html += campoHTML(f);
+  }
+  html += `<button class="btn-guardar" type="submit" id="btnGuardar">Guardar</button>`;
+  $('form').innerHTML = html;
+}
+
+function cambiarTabla(k) {
+  tablaActual = k; grabarLocal('tablaActual', k);
+  $('titulo').textContent = TABLAS[k].icono + ' ' + TABLAS[k].titulo;
+  dibujarNav(); dibujarForm(); cargarLista();
+  window.scrollTo(0, 0);
+}
+
+function lineaHTML(t, r, pendiente) {
+  const res = t.resumen(r).filter(Boolean).map(esc).join(' · ');
+  const det = t.detalle(r).filter(Boolean).map(esc).join(' · ');
+  return `<li class="${pendiente ? 'pend' : ''}">${pendiente ? '⏳ ' : ''}${res}${det ? `<div class="sub">${det}</div>` : ''}${pendiente ? '<div class="sub">Pendiente: se enviará cuando haya señal</div>' : ''}</li>`;
+}
+
+async function cargarLista() {
+  const k = tablaActual, t = TABLAS[k];
+  const pend = pendientes().filter(p => p.tabla === k).reverse();
+  let html = pend.map(p => lineaHTML(t, p.datos, true)).join('');
+  try {
+    const filas = await nube(`${k}?select=*&order=id.desc&limit=20`);
+    if (k !== tablaActual) return;
+    html += (filas || []).map(r => lineaHTML(t, r, false)).join('');
+    actualizarEstado(true);
+    if (!html) html = '<li class="vacio">Todavía no hay registros.</li>';
+  } catch (e) {
+    if (k !== tablaActual) return;
+    actualizarEstado(e.servidor ? true : false);
+    html += `<li class="vacio">${e.servidor ? 'Error al leer: ' + esc(e.message) : 'Sin conexión: no se pueden mostrar los registros de la nube.'}</li>`;
+  }
+  $('lista').innerHTML = html;
+}
+
+// ===== Guardar =====
+$('form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const t = TABLAS[tablaActual];
+  const datos = {};
+  for (const f of t.campos) {
+    const el = $('f_' + f.c);
+    let v = el.value.trim();
+    if (f.req && !v) { mensaje(`Falta completar: ${f.l}`, 'error'); el.focus(); return; }
+    if (v === '') continue;
+    if (f.t === 'number') {
+      v = Number(v.replace(',', '.'));
+      if (!isFinite(v) || (f.step === '1' && !Number.isInteger(v))) { mensaje(`${f.l}: número no válido`, 'error'); el.focus(); return; }
+    }
+    if (f.t === 'datetime-local') v = new Date(v).toISOString();
+    datos[f.c] = v;
+  }
+  // Recordar valores para sugerirlos la próxima vez
+  for (const f of t.campos) if (f.rec && typeof datos[f.c] === 'string') {
+    const lista = leerLocal('rec_' + f.c, []).filter(x => x !== datos[f.c]);
+    lista.unshift(datos[f.c]); grabarLocal('rec_' + f.c, lista.slice(0, 15));
+  }
+  const btn = $('btnGuardar'); btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    await nube(tablaActual, { method:'POST', headers:{ Prefer:'return=minimal' }, body: JSON.stringify(datos) });
+    mensaje('✅ Guardado en la nube.', 'ok');
+    actualizarEstado(true);
+    dibujarForm();
+  } catch (e) {
+    if (e.servidor) {
+      mensaje('No se pudo guardar: ' + e.message, 'error');
+      btn.disabled = false; btn.textContent = 'Guardar';
+      return;
+    }
+    const p = pendientes(); p.push({ tabla: tablaActual, datos }); grabarLocal('pendientes', p);
+    mensaje('Sin señal: quedó guardado en el teléfono y se enviará solo cuando vuelva la conexión.', 'aviso');
+    actualizarEstado(false);
+    dibujarForm();
+  }
+  cargarLista();
+});
+
+$('btnRecargar').onclick = () => { enviarPendientes(); cargarLista(); };
+window.addEventListener('online', enviarPendientes);
+window.addEventListener('offline', () => actualizarEstado(false));
+setInterval(enviarPendientes, 60000);
+
+cambiarTabla(tablaActual);
+enviarPendientes();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
