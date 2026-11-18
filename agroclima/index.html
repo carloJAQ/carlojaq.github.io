@@ -122,6 +122,23 @@ img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;fle
 .pin i{display:block;width:18px;height:18px;border-radius:50%;background:#e53935;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .etq{background:rgba(255,255,255,.9);border:0;box-shadow:0 1px 3px rgba(0,0,0,.3);font:600 11px system-ui;padding:1px 5px}
 .leyenda{display:flex;flex-wrap:wrap;gap:4px 12px}.leyenda i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #333}
+
+.fichaTabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;margin:0 0 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.fichaTabs::-webkit-scrollbar{display:none}
+.ftab{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 12px;border-radius:18px;font:inherit;font-size:13px;white-space:nowrap;cursor:pointer}
+.ftab.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+.tabP{display:none}.tabP.vis{display:block}.tabTit{display:none}
+.chipF{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer;background:var(--card)}
+.chipF.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.lt-i{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
+.lt-i[data-ltapp],.lt-i[data-ltev]{cursor:pointer}
+.lt-f{width:64px;flex:none;font-size:12px;color:var(--ink2)}
+.lt-p{width:16px;flex:none;text-align:center}
+.lt-t{flex:1;min-width:0}
+.lt-fut .lt-t,.lt-fut .lt-f{color:var(--ink2)}
+.lt-atr .lt-t b{color:var(--bad)}
+.lt-hoy{border-top:2px solid var(--brand);margin:14px 0 6px;text-align:center;height:0}
+.lt-hoy span{position:relative;top:-11px;background:var(--brand);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:10px}
 @media print{
   @page{size:A4;margin:14mm 12mm}
   html,body{background:#fff!important}
@@ -135,6 +152,7 @@ img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;fle
   .badge,.tag,.fte{border:1px solid #000!important;border-radius:3px}
   input,select,textarea{border:0!important;border-bottom:1px solid #888!important;border-radius:0!important;padding:0 2px!important;appearance:none;-webkit-appearance:none}
   table{border-collapse:collapse}th,td{border:1px solid #999!important}
+  .tabP{display:block!important}.tabTit{display:block!important;font-size:13pt;font-weight:bold;margin:10px 0 4px;border-bottom:1px solid #000}.fichaTabs,.chipF{display:none!important}.lt-hoy{border-top:2px solid #000!important}.lt-hoy span{border:1px solid #000}
   svg{filter:grayscale(1) contrast(1.2)}
   .card svg{max-height:62mm;max-width:100%;width:auto;display:block;margin:0 auto}
   body.pdf-res .card svg{max-height:48mm}
@@ -3068,19 +3086,25 @@ const badge = d => { const c = d === 'NO APLICAR' ? 'NO' : d === 'SOLO CLIMA' ? 
 
 // ---------- Vista: Inicio (lotes) ----------
 function vInicio() {
-  const lotes = DB.lotes.filter(l => l.activo !== false && loteCompleto(l)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const grp = vInicio._g || LS.get('ac_inicio_grupo', 'papa') || 'papa';
+  const enGrupo = l => grp === 'papa' ? l.cultivo === 'papa' : l.cultivo !== 'papa';
+  const todos = DB.lotes.filter(l => l.activo !== false && loteCompleto(l));
+  const lotes = todos.filter(enGrupo).sort((a, b) => String(a.numero_control || a.nombre).localeCompare(String(b.numero_control || b.nombre)) || a.nombre.localeCompare(b.nombre));
   const pend = DB.lotes.filter(l => l.activo !== false && !loteCompleto(l));
+  const nP = todos.filter(l => l.cultivo === 'papa').length, nC = todos.length - nP;
   const inact = DB.lotes.filter(l => l.activo === false);
   let h = `<button class="btn sec blk" id="hoyB" style="margin-bottom:8px">📋 Hoy: qué aplicar, inspecciones y semana</button><div class="row" style="margin-bottom:8px"><button class="btn grow" id="nuevo">+ Nuevo lote</button><button class="btn sec" id="imp">Importar Excel</button><button class="btn sec" id="refr">Actualizar</button></div>`;
+  h += `<div class="fichaTabs" id="grpTabs" style="margin-bottom:10px"><button class="ftab${grp === 'papa' ? ' on' : ''}" data-g="papa">Papa (${nP})</button><button class="ftab${grp !== 'papa' ? ' on' : ''}" data-g="cer">Cereales (${nC})</button></div>`;
   if (lotes.length) h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="resu">Resumen en tabla</button><button class="btn sec grow" id="mapaL">Mapa de lotes</button></div>`;
-  if (!lotes.length) h += `<div class="card vacio">Aún no tienes lotes.<br>Crea uno con su punto GPS y fecha de plantación o siembra.</div>`;
+  if (!lotes.length) h += `<div class="card vacio">${todos.length ? `No hay solicitudes de ${grp === 'papa' ? 'papa' : 'cereales'}.` : 'Aún no tienes lotes.<br>Crea uno con su punto GPS y fecha de plantación o siembra.'}</div>`;
   lotes.forEach(l => {
-    h += `<div class="card lote" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° ${esc(l.numero_control)} · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
+    h += `<div class="card lote" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° <b>${esc(l.numero_control)}</b> · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''}${+l.superficie_ha ? ' · ' + n1(l.superficie_ha) + ' ha' : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
   });
   if (pend.length) h += `<div class="card"><h2>Pendientes por completar (${pend.length})</h2><div class="tiny">Vinieron de la planilla sin cultivo, fecha o punto GPS. Toca uno para completarlo; mientras tanto no entran en los cálculos.</div>${pend.map(l => `<div class="vent" data-pend="${l.id}" style="cursor:pointer"><span>${esc(l.nombre)}</span><span class="tiny" style="color:var(--bad)">${[!CULTIVOS[l.cultivo] ? 'cultivo' : '', !l.fecha_plantacion ? 'fecha' : '', l.lat == null ? 'GPS' : ''].filter(Boolean).join(', ')}</span></div>`).join('')}</div>`;
   if (lotes.length) h += `<div class="tiny" style="text-align:center;margin:-4px 0 10px">Mantén apretado un lote para editarlo o borrarlo.</div>`;
   if (inact.length) h += `<details class="card"><summary>Lotes inactivos (${inact.length})</summary>${inact.map(l => `<div class="vent lote" data-id="${l.id}"><span>${esc(l.nombre)}</span><span class="tiny">${CULTIVOS[l.cultivo]}</span></div>`).join('')}</details>`;
   V().innerHTML = h;
+  V().querySelectorAll('#grpTabs [data-g]').forEach(b => b.onclick = () => { vInicio._g = b.dataset.g; LS.set('ac_inicio_grupo', b.dataset.g); vInicio(); });
   $('#nuevo').onclick = () => ir(() => vLoteForm(null), 'Nuevo lote', true);
   $('#imp').onclick = () => ir(vImportar, 'Importar planilla', true);
   $('#hoyB').onclick = () => ir(vHoy, 'Hoy', true);
@@ -3102,7 +3126,10 @@ function cargarResumenes(lotes, forzar) {
       subirClimaDiario(l, A);
       est.innerHTML = badge(A.dec.global);
       const v = A.ven.lista[0];
-      res.innerHTML = `${A.et ? `<b>${esc(A.et.actual)}</b> · ` : ''}${n0(A.hd ? A.hd.gdAc : 0)} GD · ${n1(A.hd ? A.hd.ppAc : 0)} mm acumulados<br>` +
+      let ext = '';
+      if (l.cultivo === 'papa') { const S = estadoApps(l); ext += S.atras.length ? `<b style="color:var(--bad)">${S.atras.length} aplicaciones atrasadas</b>` : 'Al día con el calendario'; if (S.futuras[0]) ext += ` · próxima: ${esc(S.futuras[0].prod.split(/ \(| o /)[0])} ${fFecha(S.futuras[0].fecha)}`; ext += '<br>'; }
+      const ins = inspeccionesLote(l, A).find(x => x.estado !== 'pasó'); if (ins) ext += `SAG: ${ins.estado === 'ahora' ? '<b>inspección ahora</b>' : 'inspección desde ' + fFecha(ins.fa.f)}<br>`;
+      res.innerHTML = `${A.et ? `<b>${esc(A.et.actual)}</b> · ` : ''}${n0(A.hd ? A.hd.gdAc : 0)} GD · ${n1(A.hd ? A.hd.ppAc : 0)} mm acumulados<br>` + ext +
         (A.dec.por.length && A.dec.global !== 'NO APLICAR' ? `${A.dec.por.map(k => ENF[k]).join(', ')}<br>` : '') +
         (v ? `Próxima ventana: ${fFecha(v.ini)} ${fHora(v.ini)}–${pad(+fHora(v.fin).slice(0, 2) + 1)}:00` : `<span style="color:var(--bad)">Sin ventana de aplicación en 72 h</span>`) +
         (c.cache ? `<br><span class="tiny">Sin conexión: datos guardados de ${new Date(c.ts).toLocaleString('es-CL')}</span>` : '');
@@ -3273,16 +3300,18 @@ async function vLote(id, forzar) {
   let h = '';
   h += `<div class="small muted" style="margin:0 2px 8px">${[l.numero_control ? `N° de control <b>${esc(l.numero_control)}</b>` : '', l.categoria ? `Categoría <b>${esc(l.categoria)}</b>` : '', l.notas && l.notas.startsWith('Agricultor:') ? esc(l.notas) : '', utmTxt(l), `<a href="https://www.google.com/maps?q=${l.lat},${l.lon}" target="_blank" rel="noopener">Google Maps</a>`].filter(Boolean).join(' · ')}</div>`;
   if (c.cache) h += `<div class="aviso">Sin conexión. Mostrando clima guardado el ${new Date(c.ts).toLocaleString('es-CL')}.</div>`;
+  const T = { res: '', sag: '', clima: '', fis: '', apl: '', lt: '' };
+  T.res = htmlResumenSol(l, A);
   // Decisión
   if (Object.keys(A.dec.enfermedades).length) {
-    h += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">${l.cultivo === 'papa' ? 'Decisión de aplicación' : 'Alertas'}</h2>${badge(A.dec.global)}</div>
+    T.clima += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">${l.cultivo === 'papa' ? 'Decisión de aplicación' : 'Alertas'}</h2>${badge(A.dec.global)}</div>
     <div style="margin-top:8px">${Object.entries(A.dec.enfermedades).map(([k, r]) => htmlEnfermedad(k, r, l)).join('')}</div>
     <div class="tiny" style="margin-top:6px">Apoyo a la decisión con modelos referenciales. Confirma con monitoreo en terreno.</div></div>`;
   }
   // Ventana
-  h += `<div class="card"><h2>¿Se puede aplicar?</h2>${htmlAhora(A.ven)}<h3>Ventanas próximas 72 h</h3>${htmlVentanas(A.ven)}</div>`;
+  T.clima += `<div class="card"><h2>¿Se puede aplicar?</h2>${htmlAhora(A.ven)}<h3>Ventanas próximas 72 h</h3>${htmlVentanas(A.ven)}</div>`;
   // Fenología
-  h += `<div class="card"><h2>Estado fenológico</h2>
+  T.fis += `<div class="card"><h2>Estado fenológico</h2>
     ${et ? `<div class="row" style="align-items:center;gap:10px"><div class="dibEt">${dibujoEtapa(l.cultivo, et.i, 84)}</div><div class="grow"><b style="font-size:17px">${esc(et.actual)}</b><div class="tiny">${diasDesde} días desde ${l.cultivo === 'papa' ? 'plantación' : 'siembra'}</div>${claveEtapa(l.cultivo, et.i) ? `<div class="small">Qué se ve: ${esc(claveEtapa(l.cultivo, et.i))}</div>` : ''}${et.ajuste ? `<div class="small"><b>Ajustado en terreno:</b> ${et.ajuste > 0 ? '+' : ''}${n0(et.ajuste)} GD (el modelo solo decía ${esc(et.actualModelo)})</div>` : ''}</div></div>
     ${et.siguiente ? `<div class="bar"><i style="width:${Math.max(2, Math.min(100, et.pct))}%"></i></div><div class="small muted">Faltan ${n0(et.faltan)} GD para <b>${esc(et.siguiente)}</b>${et.fechaSig ? ` · aprox. ${fFechaL(et.fechaSig)}` : ''}</div>` : ''}` : '<div class="muted">Sin datos aún.</div>'}
     <div class="grid3" style="margin-top:10px"><div class="kpi"><b>${n0(hd.gdAc)}</b><span>GD acumulados (base ${cult.base} °C)</span></div>
@@ -3292,10 +3321,10 @@ async function vLote(id, forzar) {
     <div class="tiny">Grados día acumulados. Líneas punteadas: umbral de cada etapa. Tramo punteado: pronóstico.</div>
     ${htmlEtapaGuia(l, et)}
     ${porque('grados día', htmlPorqueGD(l, A, cult))}</div>`;
-  h += htmlVisitas(l, A);
-  h += htmlNorma(l, A);
+  T.fis += htmlVisitas(l, A);
+  T.sag += htmlNorma(l, A) + htmlDepuracion(l, A);
   // Clima
-  h += `<div class="card"><h2>Precipitación y clima</h2>
+  T.clima += `<div class="card"><h2>Precipitación y clima</h2>
     <div class="grid3"><div class="kpi"><b>${n1(hd.ppAc)}</b><span>mm desde ${l.cultivo === 'papa' ? 'plantación' : 'siembra'}</span></div><div class="kpi"><b>${n1(pp7)}</b><span>mm últimos 7 días</span></div><div class="kpi"><b>${n1(ppF)}</b><span>mm pronóstico 7 días</span></div></div>
     <div style="margin-top:10px">${grafico(A.S.dias.map(d => ({ x: d.fecha, y: d.pp, fut: d.fecha > hoy })), { tipo: 'barra', unidad: 'mm', titulo: 'Precipitación diaria' })}</div>
     <div class="tiny">Precipitación diaria (mm). Celeste: pronóstico.</div>
@@ -3311,17 +3340,21 @@ async function vLote(id, forzar) {
     ${A.fut.slice(0, 7).map(d => `<tr><td>${fFecha(d.fecha)}</td><td>${n0(d.tmin)}°</td><td>${n0(d.tmax)}°</td><td>${n1(d.pp)}</td><td>${n0(d.viento)}</td><td>${d.h90} h</td>${l.cultivo === 'papa' ? `<td>${d.vs}${d.smith ? ' S' : ''}</td>` : ''}</tr>`).join('')}</table></div>
     <div class="row wrap" style="margin-top:10px"><button class="btn sec grow" id="obs">Anotar lluvia de pluviómetro</button><button class="btn sec grow" id="tabla">Ver tabla diaria</button></div>
     <div class="tiny" style="margin-top:6px">Fuente: Open-Meteo para el punto ${l.lat}, ${l.lon}. Actualizado ${new Date(c.ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })} h</div></div>`;
-  h += htmlCalendario(l, A);
-  h += htmlBalance(l, A);
-  h += htmlCrecimiento(l, A);
+  if (l.cultivo === 'papa') { const nAt = estadoApps(l).atras.length; T.apl += (nAt ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-bottom:10px">Dar por hechas las atrasadas (${nAt})…</button>` : '') + htmlCalendario(l, A) + htmlBodegaLote(l); }
+  T.clima += htmlBalance(l, A);
+  T.fis += htmlCrecimiento(l, A);
   // Aplicaciones
   const apps = A.apps.sort((a, b) => a.fecha < b.fecha ? 1 : -1);
-  h += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">Aplicaciones</h2><button class="btn" id="nuevaApp">+ Registrar</button></div>
-    ${apps.length ? apps.slice(0, 8).map(a => htmlAppFila(a, false)).join('') : '<div class="tiny" style="margin-top:8px">Sin aplicaciones registradas.</div>'}
+  T.apl += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">Aplicaciones registradas (${apps.length})</h2><button class="btn" id="nuevaApp">+ Registrar</button></div>
+    ${apps.length ? apps.map(a => htmlAppFila(a, false)).join('') : '<div class="tiny" style="margin-top:8px">Sin aplicaciones registradas.</div>'}
     ${htmlCarencia(apps)}</div>`;
+  T.lt = htmlLinea(l, A);
+  const tabs = FICHA_TABS;
+  h += `<div class="fichaTabs noPrint" id="fichaTabs">${tabs.map(([k, t]) => `<button class="ftab" data-tab="${k}">${t}</button>`).join('')}</div>`;
+  h += tabs.map(([k, t]) => `<div class="tabP" data-t="${k}"><div class="tabTit">${t}</div>${T[k] || '<div class="card tiny">Sin información.</div>'}</div>`).join('');
   h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="editar">Editar lote</button><button class="btn sec grow" id="recargar">Recargar clima</button></div>`;
   V().innerHTML = h;
-  enlazarNorma(l); enlazarCalendario(l);
+  enlazarNorma(l); enlazarCalendario(l); enlazarFicha(l, A);
   if ($('#l_vis')) $('#l_vis').onclick = () => { vVisita._A = { id: l.id, A }; ir(() => vVisita(l.id), 'Visita a terreno', true); };
   V().querySelectorAll('[data-bv]').forEach(b => b.onclick = () => { if (confirm('¿Borrar esta visita? Se quita también su ajuste.')) { borrarRegistro('visitas', b.dataset.bv); delete memClima[l.id]; vLote(l.id); } });
   $('#editar').onclick = () => ir(() => vLoteForm(id), 'Editar lote', true);
@@ -3626,6 +3659,161 @@ function vAppForm(id, loteId, ven, pre) {
   if (id) $('#a_b').onclick = () => { if (confirm('¿Eliminar esta aplicación?')) { borrarRegistro('apps', id); toast('Eliminada'); $('#btnAtras').click(); } };
 }
 
+// =====================================================================
+// v13: FICHA DE LA SOLICITUD (pestañas) Y LÍNEA DE TIEMPO
+// =====================================================================
+const FICHA_TABS = [['res', 'Resumen'], ['sag', 'SAG'], ['clima', 'Agroclima'], ['fis', 'Fisiología y fenología'], ['apl', 'Aplicaciones'], ['lt', 'Línea de tiempo']];
+function eventosLote(l) { if (l.cultivo !== 'papa') return []; const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, DB.apps); return ev; }
+function inspeccionesLote(l, A) {
+  const cat = l.categoria ? G.catNorma(l.cultivo, l.categoria) : null; if (!cat || cat === 'G' || !A) return [];
+  const hoy = hoyStr(), ws = l.cultivo === 'papa' ? [['1ª inspección SAG (emergencia a floración)', /Emergencia/, /Floraci/], ['2ª inspección SAG (floración)', /Floraci/, /Desarrollo de tub/]] : [['Inspección SAG (grano lechoso a pastoso)', /Z75/, /Z85/]];
+  return ws.map(([t, a, b]) => ({ t, fa: fechaParaGD(A, l, gdEtapa(l, a)), fb: fechaParaGD(A, l, gdEtapa(l, b)) })).filter(x => x.fa && x.fb).map(x => Object.assign(x, { estado: x.fb.f < hoy ? 'pasó' : x.fa.f <= hoy ? 'ahora' : 'viene' }));
+}
+function etapasFechas(l, A) { return ((CFG[l.cultivo] || CFG.papa).etapas || []).map((e, i) => ({ i, n: e.n, gd: e.gd, f: i === 0 ? { f: l.fecha_plantacion, est: false } : fechaParaGD(A, l, e.gd) })).filter(e => e.f); }
+function estadoApps(l) {
+  const hoy = hoyStr(), h7 = M.sumarDias(hoy, 7), ev = eventosLote(l);
+  return { ev, hechas: ev.filter(e => e.app), atras: ev.filter(e => !e.app && e.fecha < hoy), prox: ev.filter(e => !e.app && e.fecha >= hoy && e.fecha <= h7), futuras: ev.filter(e => !e.app && e.fecha >= hoy), reg: DB.apps.filter(a => a.lote_id === l.id) };
+}
+const TIPO_CORTO = { fungicida: 'Fungicida', insecticida: 'Insecticida', herbicida: 'Herbicida', fertilizante: 'Fertilización', foliar: 'Foliar', desecante: 'Desecación' };
+function filaEvento(e, i, pre) {
+  const hoy = hoyStr(), atras = e.fecha < hoy;
+  return `<div class="vent" data-${pre}="${i}" style="cursor:pointer"><span><b>${esc(e.prod)}</b> <span class="tag">${TIPO_CORTO[e.tipo] || e.tipo}</span><br><span class="tiny">${fFechaL(e.fecha)} · ${e.ddp} DDP · ${esc(e.obj)} · ${esc(e.dosis)}</span>${htmlStockEv(e)}</span><span class="tiny">${atras ? `<b>atrasada ${M.difDias(e.fecha, hoy)} d</b>` : e.fecha === hoy ? '<b>hoy</b>' : 'en ' + M.difDias(hoy, e.fecha) + ' d'}<br>Registrar ›</span></div>`;
+}
+function htmlResumenSol(l, A) {
+  const et = A.et, hoy = hoyStr(), papa = l.cultivo === 'papa', dias = M.difDias(l.fecha_plantacion, hoy);
+  const ins = inspeccionesLote(l, A), insA = ins.find(x => x.estado !== 'pasó');
+  const v = A.ven.lista[0], pp7 = A.pas.slice(-7).reduce((t, d) => t + d.pp, 0), ppF = A.fut.reduce((t, d) => t + d.pp, 0);
+  let h = `<div class="card"><h2>Cómo va la solicitud</h2>
+    ${et ? `<div class="row" style="align-items:center;gap:10px"><div class="dibEt">${dibujoEtapa(l.cultivo, et.i, 72)}</div><div class="grow"><b style="font-size:17px">${esc(et.actual)}</b><div class="tiny">${dias} días desde ${papa ? 'plantación' : 'siembra'} · ${n0(A.hd ? A.hd.gdAc : 0)} GD</div>${et.siguiente ? `<div class="small">Viene <b>${esc(et.siguiente)}</b>${et.fechaSig ? ` hacia el ${fFechaL(et.fechaSig)}` : ''}</div>` : ''}</div>${Object.keys(A.dec.enfermedades).length ? badge(A.dec.global) : ''}</div>` : '<div class="muted">Sin datos de etapa aún.</div>'}`;
+  if (papa) {
+    const S = estadoApps(l);
+    h += `<div class="grid3" style="margin-top:10px"><div class="kpi"><b>${S.reg.length}</b><span>aplicaciones registradas</span></div><div class="kpi"><b style="${S.atras.length ? 'color:var(--bad)' : ''}">${S.atras.length}</b><span>atrasadas (calendario)</span></div><div class="kpi"><b>${S.prox.length}</b><span>vienen en 7 días</span></div></div>`;
+    const sig = S.futuras[0];
+    h += `<div class="small" style="margin-top:8px"><b>Próxima aplicación:</b> ${sig ? `${esc(sig.prod)} (${TIPO_CORTO[sig.tipo] || sig.tipo}), ${fFechaL(sig.fecha)}` : 'ninguna en el calendario'}.</div>`;
+  }
+  h += `<div class="small" style="margin-top:4px"><b>SAG:</b> ${insA ? `${esc(insA.t)}: ${insA.estado === 'ahora' ? '<b>es ahora</b>, hasta el ' + fFechaL(insA.fb.f) : 'desde el ' + fFechaL(insA.fa.f)}${insA.fa.est ? ' (estimado)' : ''}` : ins.length ? 'inspecciones de campo ya pasaron' : 'sin inspección de campo calculada (revisa la categoría)'}.</div>
+    <div class="small" style="margin-top:4px"><b>Clima:</b> ${n1(pp7)} mm en los últimos 7 días, ${n1(ppF)} mm pronosticados; ${v ? `próxima ventana para aplicar el ${fFecha(v.ini)} ${fHora(v.ini)}–${pad(+fHora(v.fin).slice(0, 2) + 1)}:00` : '<b>sin ventana para aplicar en 72 h</b>'}.</div>
+    ${A.dec.por.length && A.dec.global !== 'NO APLICAR' ? `<div class="small" style="margin-top:4px"><b>Alertas:</b> ${A.dec.por.map(k => ENF[k]).join(', ')}.</div>` : ''}</div>`;
+  if (papa) {
+    const S = estadoApps(l);
+    resumenSol._ev = S.atras.slice(-6).concat(S.prox);
+    h += `<div class="card"><h2>Para hacer</h2>${resumenSol._ev.length ? resumenSol._ev.map((e, i) => filaEvento(e, i, 'rs')).join('') : '<div class="okmsg">Nada atrasado ni para los próximos 7 días.</div>'}${S.atras.length > 6 ? `<div class="tiny">Y ${S.atras.length - 6} atrasadas más; míralas en Aplicaciones.</div>` : ''}${S.atras.length ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-top:8px">Ya se hicieron algunas: dar por hechas…</button>` : ''}<div class="tiny" style="margin-top:4px">Atrasada = el calendario la indicaba y no hay una aplicación registrada que la cubra.</div></div>`;
+  }
+  return h;
+}
+function resumenSol() { }
+function htmlBodegaLote(l) {
+  const hoy = hoyStr(), bod = DB.prods.filter(p => p.stock != null); if (!bod.length) return `<div class="card"><h2>Bodega en esta solicitud</h2><div class="tiny">Carga el stock en Más → Mis productos.</div></div>`;
+  const B = CAL.balance([l], DB.apps, DB.prods, hoy), apps = DB.apps.filter(a => a.lote_id === l.id);
+  const filas = B.filas.filter(f => f.estado !== 'fuera' || apps.some(a => CAL.esProducto(a.producto, f.p))).map(f => {
+    let aqui = 0; if (f.p) apps.forEach(a => { if (CAL.esProducto(a.producto, f.p) && (!f.p.stock_fecha || String(a.fecha).slice(0, 10) >= f.p.stock_fecha)) { const c = CAL.cantidadApp(a, DB.lotes); if (c) aqui += c; } });
+    return Object.assign({}, f, { aqui, quedaTot: f.p ? quedaBodega(f.p) : 0 });
+  });
+  return `<div class="card"><h2>Bodega en esta solicitud${l.superficie_ha ? ` (${n1(l.superficie_ha)} ha)` : ''}</h2>${!+l.superficie_ha ? '<div class="aviso">Esta solicitud no tiene superficie: no se puede calcular cuánto producto lleva. Edítala y pon las hectáreas.</div>' : ''}
+    <table class="tabla izq"><tr><th>Producto</th><th>Aplicado aquí</th><th>Falta aplicar aquí</th><th>Queda en bodega (total)</th></tr>
+    ${filas.map(f => `<tr><td class="small"><b>${esc(f.nombre)}</b>${f.n ? `<br><span class="tiny">${f.n} aplic. pendientes</span>` : ''}</td><td class="small">${n1(f.aqui)} ${f.U}</td><td class="small">${n1(f.necesita)} ${f.U}</td><td class="small">${f.p ? `${n1(f.quedaTot)} ${f.U}` : '<b>No hay en bodega</b>'}</td></tr>`).join('')}</table>
+    <div class="tiny" style="margin-top:4px">"Falta aplicar aquí" = dosis del calendario × superficie, solo lo que viene desde hoy. Lo aplicado se descuenta del stock total de la temporada.</div></div>`;
+}
+function htmlLinea(l, A) {
+  const hoy = hoyStr(), papa = l.cultivo === 'papa', it = [], f = htmlLinea._f || 'todo';
+  etapasFechas(l, A).forEach(e => it.push({ f: e.f.f, g: 'fen', ic: '◆', t: e.i === 0 ? (papa ? 'Plantación' : 'Siembra') : (e.f.f <= hoy ? 'Llega a ' : '') + e.n, s: e.i ? `${n0(e.gd)} GD${e.f.est ? ' · estimado' : ''}` : '' }));
+  (DB.visitas || []).filter(v => v.lote_id === l.id).forEach(v => it.push({ f: String(v.fecha).slice(0, 10), g: 'fen', ic: '◎', t: 'Visita a terreno', s: ['Etapa vista: ' + (v.etapa || '—'), v.ajuste_gd ? 'ajuste ' + (v.ajuste_gd > 0 ? '+' : '') + v.ajuste_gd + ' GD' : '', v.notas].filter(Boolean).map(String).join(' · ') }));
+  DB.apps.filter(a => a.lote_id === l.id).forEach(a => it.push({ f: String(a.fecha).slice(0, 10), g: a.clase || 'otro', ic: '●', t: 'Aplicado: ' + a.producto, s: [CLASES[a.clase], a.dosis_ha != null ? n1(a.dosis_ha) + ' ' + (a.unidad || '') : '', a.grupo ? 'grupo ' + a.grupo : ''].filter(Boolean).join(' · '), app: a.id }));
+  const ev = eventosLote(l); htmlLinea._ev = ev;
+  ev.forEach((e, i) => { if (e.app) return; it.push({ f: e.fecha, g: e.tipo, ic: e.fecha < hoy ? '✕' : '○', t: (e.fecha < hoy ? 'Faltó: ' : 'Viene: ') + e.prod, s: `${TIPO_CORTO[e.tipo] || e.tipo} · ${e.dosis}`, ev: i, atr: e.fecha < hoy }); });
+  ((l.norma || {}).depu || []).forEach(d => { const n = DEPU_C.reduce((t, [k]) => t + (+d[k] || 0), 0); it.push({ f: d.fecha, g: 'sag', ic: '▲', t: 'Depuración: ' + n + ' plantas eliminadas', s: DEPU_C.filter(([k]) => +d[k]).map(([k, nn]) => nn.split(' (')[0] + ' ' + d[k]).join(' · ') + (d.quien ? ' · ' + d.quien : '') }); });
+  inspeccionesLote(l, A).forEach(x => { it.push({ f: x.fa.f, g: 'sag', ic: '▣', t: 'Comienza ' + x.t, s: x.fa.est ? 'estimado' : '' }); it.push({ f: x.fb.f, g: 'sag', ic: '▣', t: 'Termina ' + x.t, s: x.fb.est ? 'estimado' : '' }); });
+  const grupo = g => ({ fen: 'fen', sag: 'sag', fungicida: 'fung', insecticida: 'ins', herbicida: 'herb' })[g] || 'otras';
+  const fil = it.filter(x => f === 'todo' || grupo(x.g) === f).sort((a, b) => a.f < b.f ? -1 : a.f > b.f ? 1 : 0);
+  const iHoy = fil.findIndex(x => x.f > hoy);
+  const fila = x => `<div class="lt-i${x.f > hoy ? ' lt-fut' : ''}${x.atr ? ' lt-atr' : ''}" ${x.app ? `data-ltapp="${x.app}"` : x.ev != null ? `data-ltev="${x.ev}"` : ''}><div class="lt-f">${fFecha(x.f)}</div><div class="lt-p">${x.ic}</div><div class="lt-t"><b>${esc(x.t)}</b>${x.s ? `<br><span class="tiny">${esc(x.s)}</span>` : ''}</div>${x.app || x.ev != null ? '<div class="tiny">›</div>' : ''}</div>`;
+  const hoyF = `<div class="lt-hoy"><span>HOY ${fFechaL(hoy)}${A.et ? ' · ' + esc(A.et.actual) : ''}</span></div>`;
+  const ops = [['todo', 'Todo'], ['fen', 'Fenología'], ['sag', 'SAG']].concat(papa ? [['fung', 'Fungicidas'], ['ins', 'Insecticidas'], ['herb', 'Herbicidas'], ['otras', 'Otras']] : []);
+  return `<div class="card" id="ltCard"><h2>Línea de tiempo</h2><div class="row wrap noRes" style="gap:4px;margin-bottom:8px">${ops.map(([k, t]) => `<span class="chipF${f === k ? ' on' : ''}" data-ltf="${k}">${t}</span>`).join('')}</div>
+    <div class="lt">${fil.length ? (iHoy < 0 ? fil.map(fila).join('') + hoyF : fil.slice(0, iHoy).map(fila).join('') + hoyF + fil.slice(iHoy).map(fila).join('')) : '<div class="tiny">Nada que mostrar con este filtro.</div>'}</div>
+    <div class="tiny" style="margin-top:6px">◆ etapa · ◎ visita · ● aplicado · ○ viene · ✕ faltó (no registrada) · ▣ SAG · ▲ depuración. Toca una aplicación para verla o una pendiente para registrarla.</div></div>`;
+}
+function enlazarFicha(l, A) {
+  const tabs = $('#fichaTabs'); if (!tabs) return;
+  const mostrar = t => { fichaTab._t = t; tabs.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); V().querySelectorAll('.tabP').forEach(p => p.classList.toggle('vis', p.dataset.t === t)); };
+  tabs.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { mostrar(b.dataset.tab); window.scrollTo(0, 0); });
+  mostrar(FICHA_TABS.some(([k]) => k === fichaTab._t && V().querySelector(`.tabP[data-t="${k}"]`)) ? fichaTab._t : 'res');
+  V().querySelectorAll('[data-rs]').forEach(e => e.onclick = () => registrarEvento(l, resumenSol._ev[+e.dataset.rs]));
+  V().querySelectorAll('[data-hechas]').forEach(b => b.onclick = () => darPorHechas(l));
+  enlazarDepuracion(l);
+  const enlazarLT = () => {
+    const c = $('#ltCard'); if (!c) return;
+    c.querySelectorAll('[data-ltf]').forEach(b => b.onclick = () => { htmlLinea._f = b.dataset.ltf; const t = document.createElement('div'); t.innerHTML = htmlLinea(l, A); c.replaceWith(t.firstElementChild); enlazarLT(); });
+    c.querySelectorAll('[data-ltapp]').forEach(e => e.onclick = () => ir(() => vAppForm(e.dataset.ltapp), 'Editar aplicación', true));
+    c.querySelectorAll('[data-ltev]').forEach(e => e.onclick = () => registrarEvento(l, htmlLinea._ev[+e.dataset.ltev]));
+  };
+  enlazarLT();
+}
+function fichaTab() { }
+// ---------- Depuración (roguing) para el SAG: se guarda dentro de la solicitud (norma.depu) ----------
+const DEPU_C = [['fueraTipo', 'Fuera de tipo y otras variedades'], ['virosisGrave', 'Virosis grave'], ['virosisLeve', 'Virosis leve'], ['pieNegro', 'Pie negro (Pectobacterium)']];
+function poblacionLote(l) { const dh = +l.distancia_hileras_m || 0.75, sup = +l.superficie_ha || 0; return sup ? Math.round(sup * 10000 / (dh * 0.30)) : null; }
+function tolDepu(l) { const cat = G.catNorma('papa', l.categoria); const i = G.NORMA_PAPA.categorias.indexOf(cat); if (i < 0) return null; const c = G.NORMA_PAPA.campo; return { cat, fueraTipo: c.fueraTipo[i], virosisGrave: c.virosisGrave[i], virosisLeve: c.virosisLeve[i], totalVirosis: c.totalVirosis[i], pieNegro: c.pieNegro[i] }; }
+function pctDepu(d) { const b = +d.plantas || 0, o = {}; DEPU_C.forEach(([k]) => o[k] = b ? (+d[k] || 0) / b * 100 : null); o.totalVirosis = b ? ((+d.virosisGrave || 0) + (+d.virosisLeve || 0)) / b * 100 : null; return o; }
+const pctTxt = x => x == null ? '—' : (x < 0.01 && x > 0 ? '<0,01' : n2(x)) + ' %';
+function n2(x) { return (Math.round(x * 100) / 100).toLocaleString('es-CL', { maximumFractionDigits: 2 }); }
+function htmlDepuracion(l, A) {
+  if (l.cultivo !== 'papa') return '';
+  const T = tolDepu(l), ds = ((l.norma || {}).depu || []).slice().sort((a, b) => a.fecha < b.fecha ? 1 : -1), hoy = hoyStr();
+  let h = `<div class="card" id="depCard"><div class="row"><h2 class="grow" style="margin:0">Depuración</h2><button class="btn noRes" id="depN">+ Pasada</button></div>`;
+  if (!T) return h + `<div class="aviso" style="margin-top:8px">La categoría "${esc(l.categoria || 'sin categoría')}" no tiene tolerancias de campo en la norma (G0/G1 o sin categoría). Igual puedes anotar las pasadas.</div>${ds.length ? htmlDepuLista(l, ds, null) : ''}</div>`;
+  const ins = inspeccionesLote(l, A).find(x => x.estado !== 'pasó'), ult = ds[0];
+  if (ins) {
+    const dIns = M.difDias(hoy, ins.fa.f), dUlt = ult ? M.difDias(ult.fecha, hoy) : null;
+    const msg = ins.estado === 'ahora' ? (dUlt == null || dUlt > 7 ? `La ${esc(ins.t)} <b>es ahora</b> y ${ult ? `la última depuración fue hace ${dUlt} días` : 'no hay depuraciones anotadas'}: conviene pasar antes de que llegue el inspector.` : `La ${esc(ins.t)} es ahora; última depuración hace ${dUlt} días.`) : `Próxima: ${esc(ins.t)} desde el ${fFechaL(ins.fa.f)}${ins.fa.est ? ' (estimado)' : ''}, en ${dIns} días. Haz una pasada en los 7 días antes.`;
+    h += `<div class="${ins.estado === 'ahora' && (dUlt == null || dUlt > 7) ? 'aviso' : 'small'}" style="margin-top:8px">${msg}</div>`;
+  }
+  h += `<h3>Tolerancia de la norma para ${esc(T.cat)} (Cuadro 2, % de plantas)</h3><table class="tabla izq"><tr><th>Causa</th><th>Tolerancia</th><th>Última pasada</th><th>Temporada</th></tr>`;
+  const tot = { plantas: 0 }; DEPU_C.forEach(([k]) => tot[k] = 0);
+  ds.forEach(d => DEPU_C.forEach(([k]) => tot[k] += +d[k] || 0));
+  const pU = ult ? pctDepu(ult) : null, base = ult ? +ult.plantas : poblacionLote(l), pT = base ? pctDepu(Object.assign({}, tot, { plantas: base })) : null;
+  DEPU_C.concat([['totalVirosis', 'Total virosis']]).forEach(([k, n]) => {
+    const u = pU ? pU[k] : null, sup = u != null && u > T[k];
+    h += `<tr><td class="small">${n}</td><td class="small">${n2(T[k])} %</td><td class="small">${sup ? '<b>' : ''}${pctTxt(u)}${sup ? ' ▲</b>' : ''}</td><td class="small">${pctTxt(pT ? pT[k] : null)}</td></tr>`;
+  });
+  h += `</table>`;
+  if (pU && T.fueraTipo === 0 && +ult.fueraTipo > 0) h += `<div class="small" style="margin-top:6px"><b>Fuera de tipo tiene tolerancia 0 en ${esc(T.cat)}:</b> el inspector no puede encontrar ninguna planta de otra variedad. Las ${ult.fueraTipo} que sacaste están bien eliminadas; vuelve a recorrer antes de la inspección.</div>`;
+  if (pU && Object.keys(pU).some(k => k !== 'fueraTipo' && pU[k] != null && T[k] != null && pU[k] > T[k])) h += `<div class="aviso" style="margin-top:6px">▲ Lo eliminado en la última pasada supera la tolerancia de la inspección. No es un rechazo (lo que cuenta es lo que encuentre el inspector), pero indica mucha presión: repasa el lote antes de la inspección y revisa el origen de la semilla.</div>`;
+  h += htmlDepuLista(l, ds, T);
+  h += porque('', fundLista([['La tolerancia del Cuadro 2 se aplica a las plantas que encuentra el inspector en el semillero. Las plantas que sacas antes (con sus tubérculos) no se cuentan, por eso se depura antes de cada inspección.', 'normaPapa'], ['El porcentaje de cada pasada es plantas eliminadas ÷ plantas revisadas. Si no contaste, la app usa la población estimada del lote: superficie × 10.000 ÷ (distancia entre hileras × 0,30 m sobre la hilera).', 'normaPapa'], ['"Temporada" suma todas las pasadas sobre la población del lote: muestra la presión total del semillero.', 'normaPapa']]));
+  return h + '</div>';
+}
+function htmlDepuLista(l, ds, T) {
+  if (!ds.length) return '<div class="tiny" style="margin-top:8px">Sin pasadas anotadas.</div>';
+  return `<h3>Pasadas (${ds.length})</h3>` + ds.map(d => { const p = pctDepu(d); return `<div class="vent" data-dep="${d.id}" style="cursor:pointer"><span><b>${fFechaL(d.fecha)}</b>${d.quien ? ' · ' + esc(d.quien) : ''}<br><span class="tiny">${DEPU_C.map(([k, n]) => `${n.split(' (')[0].replace('Fuera de tipo y otras variedades', 'Fuera de tipo')}: ${+d[k] || 0}`).join(' · ')} · ${d.plantas ? 'sobre ' + Number(d.plantas).toLocaleString('es-CL') + ' plantas' : ''}</span>${d.notas ? `<br><span class="small">${esc(d.notas)}</span>` : ''}</span><span class="tiny">${T && p.totalVirosis != null ? 'virosis ' + pctTxt(p.totalVirosis) : ''} ›</span></div>`; }).join('');
+}
+function enlazarDepuracion(l) {
+  const c = $('#depCard'); if (!c) return;
+  $('#depN').onclick = () => ir(() => vDepuracion(l.id, null), 'Depuración', true);
+  c.querySelectorAll('[data-dep]').forEach(e => e.onclick = () => ir(() => vDepuracion(l.id, e.dataset.dep), 'Depuración', true));
+}
+function vDepuracion(loteId, depId) {
+  const l = DB.lotes.find(x => x.id === loteId); if (!l) return;
+  const ds = (l.norma || {}).depu || [], d = depId ? clon(ds.find(x => x.id === depId)) : { id: uid(), fecha: hoyStr(), plantas: poblacionLote(l), quien: '', notas: '' };
+  const T = tolDepu(l);
+  V().innerHTML = `<div class="card"><div class="small muted">${esc(l.nombre)}${l.numero_control ? ' · N° ' + esc(l.numero_control) : ''}${T ? ' · ' + T.cat : ''}</div>
+    <div class="grid2"><div><label>Fecha</label><input type="date" id="d_f" value="${esc(d.fecha)}"></div><div><label>Quién depuró</label><input id="d_q" value="${esc(d.quien || '')}"></div></div>
+    <label>Plantas revisadas</label><input type="number" id="d_pl" value="${esc(d.plantas ?? '')}">
+    <div class="tiny">${poblacionLote(l) ? `Población estimada del lote: ${poblacionLote(l).toLocaleString('es-CL')} plantas (${n1(l.superficie_ha)} ha). Cámbialo si revisaste solo una parte.` : 'El lote no tiene superficie: escribe cuántas plantas revisaste.'}</div>
+    <div class="sub">Plantas eliminadas</div>
+    <div class="grid2">${DEPU_C.map(([k, n]) => `<div><label>${n}${T ? ` <span class="tiny">(tol. ${n2(T[k])} %)</span>` : ''}</label><input type="number" min="0" id="d_${k}" value="${esc(d[k] ?? '')}"></div>`).join('')}</div>
+    <div id="d_calc" class="small" style="margin-top:8px"></div>
+    <label>Notas (sector, síntomas, qué variedad apareció)</label><textarea id="d_n" rows="2">${esc(d.notas || '')}</textarea>
+    <div class="row" style="margin-top:10px;gap:6px"><button class="btn grow" id="d_g">Guardar</button>${depId ? '<button class="btn peligro" id="d_b">Borrar</button>' : ''}</div></div>`;
+  const leer = () => { const o = Object.assign({}, d, { fecha: $('#d_f').value, quien: $('#d_q').value.trim(), plantas: numOrNull($('#d_pl').value), notas: $('#d_n').value.trim() }); DEPU_C.forEach(([k]) => o[k] = numOrNull($('#d_' + k).value) || 0); return o; };
+  const calc = () => { const o = leer(), p = pctDepu(o); $('#d_calc').innerHTML = o.plantas ? DEPU_C.concat([['totalVirosis', 'Total virosis']]).map(([k, n]) => { const sup = T && p[k] > T[k]; return `${n}: ${sup ? '<b>' : ''}${pctTxt(p[k])}${sup ? ' ▲ sobre la tolerancia</b>' : ''}`; }).join('<br>') : 'Escribe las plantas revisadas para calcular el porcentaje.'; };
+  V().querySelectorAll('input').forEach(i => i.oninput = calc); calc();
+  const guardarDep = fn => { const lo = clon(DB.lotes.find(x => x.id === loteId)); lo.norma = Object.assign({ chk: {} }, lo.norma || {}); lo.norma.depu = fn((lo.norma.depu || []).filter(x => x.id !== d.id)); lo.updated_at = new Date().toISOString(); guardarRegistro('lotes', lo); };
+  $('#d_g').onclick = () => { const o = leer(); if (!o.fecha) return toast('Falta la fecha'); guardarDep(a => a.concat([o])); toast('Depuración guardada'); fichaTab._t = 'sag'; $('#btnAtras').click(); };
+  if ($('#d_b')) $('#d_b').onclick = () => { if (!confirm('¿Borrar esta pasada de depuración?')) return; guardarDep(a => a); toast('Borrada'); fichaTab._t = 'sag'; $('#btnAtras').click(); };
+}
+
+
 // ---------- Bodega (stock) contra el calendario ----------
 function quedaBodega(p) { return +p.stock - CAL.usado(p, DB.apps, DB.lotes).q; }
 const BODEGA_EST = { sin: 'No hay en bodega', falta: 'No alcanza', alcanza: 'Alcanza', fuera: 'No se usa en lo que queda' };
@@ -3720,12 +3908,16 @@ function enlazarBodega() {
 // ---------- Mis productos ----------
 function vProductos() {
   const prods = DB.prods.slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
-  V().innerHTML = htmlBodega() + `<div class="row" style="margin-bottom:12px"><button class="btn grow" id="np">+ Nuevo producto</button><button class="btn sec" id="ej">Ejemplos INIA</button></div>
-    <button class="btn sec blk" id="pr" style="margin-bottom:12px">Cargar productos de los programas del sur</button>
-    ${prods.length ? `<div class="card">${prods.map(p => `<div class="vent" data-p="${p.id}" style="cursor:pointer"><span><b>${esc(p.nombre)}</b>${p.grupo ? ` <span class="tag">${esc(p.grupo)}</span>` : ''}<br><span class="tiny">${esc(p.ingrediente || '')} · ${CLASES[p.clase] || ''} · ${TIPOS[p.movilidad] || ''}</span></span><span class="tiny">${p.dosis_ha != null ? n1(p.dosis_ha) + ' ' + esc(p.unidad || '') : ''}${p.carencia_dias != null ? '<br>carencia ' + p.carencia_dias + ' d' : ''}${p.stock != null ? `<br>bodega: <b>${n1(quedaBodega(p))} ${esc(CAL.unidadBase(p.stock_unidad || p.unidad))}</b>` : ''}</span></div>`).join('')}</div>` : '<div class="card vacio">Guarda aquí los productos que usas, con su grupo, dosis de etiqueta y carencia. Al registrar una aplicación se llenan solos y la app avisa si repites el grupo.</div>'}
+  const fila = p => `<div class="vent" data-p="${p.id}" style="cursor:pointer"><span><b>${esc(p.nombre)}</b>${p.grupo ? ` <span class="tag">${esc(p.grupo)}</span>` : ''}<br><span class="tiny">${esc(p.ingrediente || '')} · ${CLASES[p.clase] || ''} · ${TIPOS[p.movilidad] || ''}</span></span><span class="tiny">${p.dosis_ha != null ? n1(p.dosis_ha) + ' ' + esc(p.unidad || '') : ''}${p.carencia_dias != null ? '<br>carencia ' + p.carencia_dias + ' d' : ''}${p.stock != null ? `<br>bodega: <b>${n1(quedaBodega(p))} ${esc(CAL.unidadBase(p.stock_unidad || p.unidad))}</b>` : ''}</span></div>`;
+  const bod = prods.filter(p => p.stock != null), refs = prods.filter(p => p.stock == null);
+  V().innerHTML = htmlBodega() + `<div class="card"><h2>Productos de la temporada (${bod.length})</h2>${bod.length ? bod.map(fila).join('') : '<div class="tiny">Carga el stock que llegó con el botón de arriba.</div>'}<div class="row noRes" style="margin-top:8px"><button class="btn sec grow" id="np">+ Agregar producto a la bodega</button></div></div>
+    <details class="card noRes"><summary>Productos de referencia (${refs.length}): no se usan en los cálculos</summary>
+    <div class="tiny" style="margin:6px 0">Sirven solo para consultar grupo, ingrediente o dosis. La app trabaja con los productos de la temporada; si uno de estos llega a bodega, ábrelo y ponle la cantidad.</div>
+    <div class="row" style="margin-bottom:8px"><button class="btn sec grow" id="ej">Ejemplos INIA</button><button class="btn sec grow" id="pr">Programas del sur</button></div>
+    ${refs.map(fila).join('')}</details>
     <div class="tiny">Las dosis siempre deben venir de la etiqueta vigente autorizada por el SAG.</div>`;
   enlazarBodega();
-  $('#np').onclick = () => ir(() => vProductoForm(null), 'Nuevo producto', true);
+  $('#np').onclick = () => { vProductoForm._stock = true; ir(() => vProductoForm(null), 'Nuevo producto', true); };
   $('#ej').onclick = () => {
     let n = 0; G.PRODUCTOS_EJEMPLO.forEach(p => { if (!DB.prods.some(x => x.nombre === p.nombre)) { guardarRegistro('prods', Object.assign({ id: uid(), created_at: new Date().toISOString() }, p)); n++; } });
     toast(n ? `${n} herbicidas del manual INIA agregados` : 'Ya estaban cargados'); vProductos();
@@ -3743,6 +3935,7 @@ function vProductos() {
 }
 function vProductoForm(id) {
   const p = id ? clon(DB.prods.find(x => x.id === id)) : { id: uid(), nombre: '', ingrediente: '', grupo: '', clase: 'fungicida', movilidad: 'contacto', dosis_ha: null, unidad: 'L/ha', carencia_dias: null, reingreso_h: null, objetivo: '', notas: '' };
+  if (!id && vProductoForm._stock) { p.stock = 0; p.stock_fecha = hoyStr(); } vProductoForm._stock = false;
   V().innerHTML = `<div class="card">
     <label>Nombre comercial</label><input id="p_n" value="${esc(p.nombre)}">
     <label>Ingrediente activo</label><input id="p_i" list="dl_ia2" value="${esc(p.ingrediente || '')}">
@@ -4038,7 +4231,7 @@ const CALC_FN = {
 // ---------- Más ----------
 function vMas() {
   const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
-  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 12</div>`;
+  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 13</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
 function vFuentes() {
@@ -4702,16 +4895,42 @@ function enlazarCalendario(l) {
   const guardar = mod => { const lo = clon(DB.lotes.find(x => x.id === l.id)); lo.norma = Object.assign({ chk: {} }, lo.norma || {}); mod(lo.norma); lo.updated_at = new Date().toISOString(); guardarRegistro('lotes', lo); Object.assign(l, lo); };
   if ($('#cal_prog')) $('#cal_prog').onchange = e => { guardar(n => n.prog = e.target.value); repintarCal(l); };
   $('#calCard').querySelectorAll('[data-cf]').forEach(b => b.onclick = () => { htmlCalendario._f = b.dataset.cf; repintarCal(l); });
-  $('#calCard').querySelectorAll('[data-reg]').forEach(b => b.onclick = () => {
-    const e = htmlCalendario._ev[+b.dataset.reg]; const k = G.PROD_IA && Object.keys(G.PROD_IA).find(x => e.prod.toLowerCase().startsWith(x.toLowerCase().split(' (')[0]));
+  $('#calCard').querySelectorAll('[data-reg]').forEach(b => b.onclick = () => registrarEvento(l, htmlCalendario._ev[+b.dataset.reg]));
+}
+function registrarEvento(l, e) { const pre = preEvento(l, e); ir(() => vAppForm(null, l.id, null, pre), 'Nueva aplicación', true); }
+// Datos de una aplicación armados desde un evento del calendario (producto de bodega, dosis, agua)
+function preEvento(l, e) {
+  {
+    const k = G.PROD_IA && Object.keys(G.PROD_IA).find(x => e.prod.toLowerCase().startsWith(x.toLowerCase().split(' (')[0]));
     const pre = { producto: e.prod.split(/ o |\(/)[0].trim(), clase: e.tipo, fecha: e.fecha <= hoyStr() ? e.fecha : hoyStr(), dosis: e.dosis, objetivo: e.tipo === 'fungicida' ? (/botri/i.test(e.obj) ? 'botritis' : /altern/i.test(e.obj) ? 'alternaria' : 'tizon') : e.tipo === 'insecticida' ? 'pulgones' : '', grupo: G.grupoDe ? G.grupoDe(e.prod) : '', ingrediente: k ? G.PROD_IA[k].ia : '' };
     const cb = CAL.componentes(e, DB.prods)[0];
     if (cb && cb.p) Object.assign(pre, { producto: cb.p.nombre, ingrediente: cb.p.ingrediente || pre.ingrediente, grupo: cb.p.grupo || pre.grupo, movilidad: undefined, carencia_dias: cb.p.carencia_dias ?? null });
     if (cb && cb.d && cb.d.q != null) Object.assign(pre, { dosis_ha: Math.round(cb.d.q * 1000) / 1000, unidad: cb.d.U + '/ha' });
     const agua = (String(e.dosis).match(/en (\d+) L de agua/) || [])[1]; if (agua) pre.volumen_ha = +agua;
     delete pre.movilidad;
-    ir(() => vAppForm(null, l.id, null, pre), 'Nueva aplicación', true);
-  });
+    return pre;
+  }
+}
+// Marcar de una vez como hechas las aplicaciones atrasadas que el usuario elija
+function darPorHechas(l) {
+  const S = estadoApps(l); if (!S.atras.length) return toast('No hay atrasadas');
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:420px;margin:6vh auto 0;max-height:84vh;overflow:auto"><h2>Dar por hechas (${esc(l.nombre)})</h2>
+    <div class="tiny" style="margin-bottom:6px">Marca las que sí se hicieron. Se registran con la fecha y la dosis del calendario; después puedes corregir cualquiera. Cuando el calendario da alternativas el mismo día (por ejemplo al surco), deja marcada solo la que usaste.</div>
+    <div class="row" style="gap:6px;margin-bottom:6px"><button class="btn sec grow" data-x="todas">Marcar todas</button><button class="btn sec grow" data-x="ninguna">Ninguna</button></div>
+    ${S.atras.map((e, i) => `<label class="vent" style="cursor:pointer;justify-content:flex-start;gap:8px"><input type="checkbox" data-i="${i}" ${/elatus/i.test(e.prod) ? '' : 'checked'} style="width:auto;margin:0"><span><b>${esc(e.prod)}</b> <span class="tag">${TIPO_CORTO[e.tipo] || e.tipo}</span><br><span class="tiny">${fFechaL(e.fecha)} · ${esc(e.dosis)}</span></span></label>`).join('')}
+    <div class="row" style="gap:6px;margin-top:10px"><button class="btn grow" data-x="ok">Registrar las marcadas</button><button class="btn sec" data-x="no">Cancelar</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.onclick = ev => {
+    const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === ov) ov.remove(); return; }
+    const cb = [...ov.querySelectorAll('input[data-i]')];
+    if (b.dataset.x === 'todas') return cb.forEach(c => c.checked = true);
+    if (b.dataset.x === 'ninguna') return cb.forEach(c => c.checked = false);
+    if (b.dataset.x === 'no') return ov.remove();
+    const sel = cb.filter(c => c.checked).map(c => S.atras[+c.dataset.i]); ov.remove();
+    sel.forEach(e => { const pre = preEvento(l, e); guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { fecha: e.fecha, notas: 'Dada por hecha desde el calendario La Pampa (' + e.ddp + ' DDP).' })); });
+    toast(`${sel.length} aplicaciones registradas`); vLote(l.id);
+  };
 }
 function repintarCal(l) { const c = $('#calCard'); if (!c) return; const tmp = document.createElement('div'); tmp.innerHTML = htmlCalendario(l, null); c.replaceWith(tmp.firstElementChild); enlazarCalendario(l); }
 

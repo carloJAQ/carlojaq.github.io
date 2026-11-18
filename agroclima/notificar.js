@@ -2,6 +2,7 @@
 // 1) Hace una consulta a Supabase para que el proyecto gratis no se pause.
 // 2) Los lunes, miércoles, viernes y domingo (o si FORZAR=1) calcula el resumen y manda la notificación
 //    a los teléfonos que activaron los avisos en la app.
+// 3) Cada 15 minutos manda los mensajes escritos a mano en la app (tabla ac_mensajes) cuando llega su hora.
 // Usa el mismo código de cálculo que la app: lo baja de la página publicada.
 const vm = require('vm');
 let webpush = null;
@@ -30,6 +31,18 @@ async function main() {
   // 1) mantener activo
   const lotesTodos = await sb('GET', 'ac_lotes?select=*');
   console.log(`Supabase activo: ${lotesTodos.length} lotes.`);
+
+  // 3) mensajes manuales cuya hora ya llegó
+  const subsM = VAPID_PRIV ? await sb('GET', 'ac_push?select=*&activo=eq.true') : [];
+  const pend = await sb('GET', `ac_mensajes?select=*&enviado_en=is.null&enviar_en=lte.${encodeURIComponent(new Date().toISOString())}&order=enviar_en.asc`).catch(e => { console.log('Tabla de mensajes no disponible:', e.message); return []; });
+  if (pend.length && !VAPID_PRIV) console.log('Hay mensajes pendientes pero falta VAPID_PRIVATE.');
+  for (const m of VAPID_PRIV ? pend : []) {
+    const r = await enviar(subsM, { title: m.titulo || 'INIA La Pampa', body: m.texto || '', url: './#mensajes', tag: 'msg-' + m.id }, 24 * 3600, sb);
+    await sb('PATCH', `ac_mensajes?id=eq.${m.id}`, { enviado_en: new Date().toISOString(), enviados: r.ok });
+    console.log(`Mensaje "${(m.titulo || '').slice(0, 40)}" enviado a ${r.ok} de ${subsM.length} teléfonos.`);
+  }
+  const CRON = process.env.CRON || '';
+  if (CRON && CRON !== '13 10 * * *') { console.log('Pasada de mensajes lista.'); return; }
 
   const dia = new Date().getDay();
   if (process.env.FORZAR !== '1' && !DIAS_AVISO.includes(dia)) { console.log('Hoy no toca aviso.'); return; }
@@ -120,13 +133,16 @@ async function main() {
   const msg = { title: `AgroClima · ${fCorta(hoy)}`, body: partes.join(' · '), url: './#hoy', tag: 'agroclima-' + hoy };
   console.log('Aviso:', JSON.stringify(msg));
 
-  webpush = require('web-push');
-  webpush.setVapidDetails('mailto:agroclima@carlojaq.github.io', VAPID_PUB, VAPID_PRIV);
+  const r = await enviar(subs, msg, 6 * 3600, sb);
+  console.log(`Enviado a ${r.ok} de ${subs.length} teléfonos.`);
+}
+async function enviar(subs, msg, ttl, sb) {
+  if (!webpush) { webpush = require('web-push'); webpush.setVapidDetails('mailto:agroclima@carlojaq.github.io', VAPID_PUB, VAPID_PRIV); }
   let ok = 0;
   for (const s of subs) {
-    try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(msg), { TTL: 6 * 3600 }); ok++; }
+    try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(msg), { TTL: ttl }); ok++; }
     catch (e) { console.log('Falló un teléfono:', e.statusCode || e.message); if (e.statusCode === 404 || e.statusCode === 410) await sb('DELETE', `ac_push?id=eq.${encodeURIComponent(s.id)}`); }
   }
-  console.log(`Enviado a ${ok} de ${subs.length} teléfonos.`);
+  return { ok };
 }
 main().catch(e => { console.error(e); process.exit(1); });
