@@ -1,0 +1,7 @@
+name: AgroClima diario (mantener Supabase y avisos)
+on: {schedule: [{cron: '13 10 * * *'}], workflow_dispatch: {inputs: {forzar: {description: 'Enviar el aviso hoy aunque no toque (1 = si)', default: '1'}}}}
+jobs:
+  diario:
+    runs-on: ubuntu-latest
+    env: {TZ: America/Santiago, VAPID_PUBLIC: BOFEEIOhoh97wakKWasLzJ4GdjyERsobcOLSWLEW8s6Pb2WDPHgEBoLcJhRwUO6_mFy305gXsoJn4Yl5RaG8Ux4, VAPID_PRIVATE: '${{ secrets.VAPID_PRIVATE }}', FORZAR: "${{ github.event.inputs.forzar || '0' }}"}
+    steps: [{uses: actions/setup-node@v4, with: {node-version: 20}}, {name: Bajar el programa de avisos, run: 'curl -fsSL https://carlojaq.github.io/agroclima/notificar.js -o n.js'}, {name: Instalar web-push, run: 'npm install --no-save web-push || true'}, {name: Consultar la base y enviar el aviso, run: 'node n.js'}]
