@@ -111,6 +111,10 @@ ul.pasos li.fin{font-weight:650;padding-left:0}
 .est{display:flex;flex-direction:column;align-items:center;text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 4px;background:#fff;gap:2px}
 .est b{font-size:12px;line-height:1.2}.est.sel{cursor:pointer}.est.on{border:2px solid var(--brand);background:#eef5ea}
 .dibEt{flex:0 0 auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;line-height:0}
+.lote,[data-pend]{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.apretando{transform:scale(.98);background:#eef5ea!important;transition:transform .5s,background .5s}
+.vent.cal.falta{border-left:3px solid var(--bad);padding-left:6px}.vent.cal.ok{opacity:.8}
+.fotosM{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.fotosM figure{margin:0}.fotosM img{width:100%;border-radius:8px;display:block}
+img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 52px;background:#eee}
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;padding:0 16px}
 .mapa{border-radius:10px;overflow:hidden;background:#dde3da;z-index:0}
 .mapsw{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.3);display:flex;overflow:hidden;font:600 12px system-ui}
@@ -2345,6 +2349,7 @@ if (typeof module !== 'undefined') module.exports = G;
   G.FICHAS.push(fichaFito, fichaInsect, fichaMalezas, fichaFert, fichaCal);
   const DOSIS = { 'Proxanil': [2.5, 'L/ha'], 'Revus': [0.5, 'L/ha'], 'Forum': [0.5, 'L/ha'], 'Danjiri': [1, 'L/ha'], 'Bravo': [2.2, 'L/ha'], 'Consento': [2.2, 'L/ha'], 'Infinito': [2, 'L/ha'], 'Revus Top': [0.5, 'L/ha'], 'Orvego': [2, 'L/ha'], 'Zampro': [0.8, 'L/ha'], 'Bellis': [0.8, 'kg/ha'], 'Moxan': [2, 'L/ha'], 'Mancozeb': [2, 'kg/ha'], 'Closer': [0.15, 'L/ha'], 'Movento Smart': [0.5, 'L/ha'], 'Chess': [0.3, 'kg/ha'], 'Azyra': [0.6, 'L/ha'], 'Sivanto Prime': [0.75, 'L/ha'], 'Engeo': [0.2, 'L/ha'], 'Karate Zeon': [0.2, 'L/ha'], 'Versys': [0.15, 'L/ha'], 'Turbine': [0.2, 'kg/ha'], 'Hallmark': [0.2, 'L/ha'], 'Paraquat': [2, 'L/ha'], 'Herbadox': [3, 'L/ha'], 'Metribuzina (Sencor, Metriphar)': [1.2, 'L/ha'] };
   G.PROG_DOSIS = DOSIS; G.claveDe = claveDe;
+  G.PROG_INSECT = INSECT; G.PROG_MALEZAS = MALEZAS; G.FERT_PLAN = FERT.plan; G.CAL_LP = CAL_LP;
   G.PROD_IA = PROD_IA; G.PROG_FITO = FITO; G.grupoDe = grupoDe; G.EQUILIBRIOS = FERT.equilibrios; G.DEMANDA = FERT.demanda;
 
   G.PREGUNTAS.push(
@@ -2601,7 +2606,7 @@ const n0 = x => x == null || isNaN(x) ? '—' : Math.round(x).toLocaleString('es
 const CULTIVOS = { papa: 'Papa', trigo: 'Trigo', avena: 'Avena', cebada: 'Cebada' };
 const ENF = { tizon: 'Tizón tardío', alternaria: 'Tizón temprano (Alternaria)', botritis: 'Botritis', pulgones: 'Pulgones', malezas: 'Malezas', otro: 'Otro' };
 const ENF_FICHA = { tizon: 'tizon', alternaria: 'alternaria', botritis: 'botritis', pulgones: 'pulgones-cereales' };
-const CLASES = { fungicida: 'Fungicida', insecticida: 'Insecticida', herbicida: 'Herbicida', otro: 'Otro' };
+const CLASES = { fungicida: 'Fungicida', insecticida: 'Insecticida', herbicida: 'Herbicida', fertilizante: 'Fertilizante', foliar: 'Foliar o bioestimulante', desecante: 'Desecante', otro: 'Otro' };
 const TIPOS = { contacto: 'Contacto', translaminar: 'Translaminar', sistemico: 'Sistémico' };
 
 // ---------- Almacenamiento local ----------
@@ -2780,14 +2785,17 @@ function grafico(datos, op) {
   // datos: [{x:'2026-11-01', y:3.2, fut:bool}], op: {tipo:'barra'|'linea', unidad, marcas:[{y, n}]}
   const W = 340, H = 150, L = 34, R = 8, T = 10, B = 22;
   if (!datos.length) return '<div class="tiny">Sin datos</div>';
-  const ys = datos.map(d => d.y);
-  let ymax = Math.max(...ys, ...(op.marcas || []).filter(m => m.y <= Math.max(...ys) * 1.4).map(m => m.y), 1);
-  const paso = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000][[1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000].findIndex(s => ymax / s <= 4)] || 1000;
-  ymax = Math.ceil(ymax / paso) * paso;
+  const ys = datos.map(d => d.y).concat(datos.filter(d => d.y2 != null).map(d => d.y2)).filter(v => v != null && isFinite(v));
+  let ymax = Math.max(...ys, ...(op.marcas || []).filter(m => m.y <= Math.max(...ys) * 1.4).map(m => m.y), op.tipo === 'barra' ? 1 : -Infinity);
+  let ymin0 = op.ymin != null ? op.ymin : Math.min(0, ...ys);
+  if (ymax <= ymin0) ymax = ymin0 + 1;
+  const pasos = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+  const paso = pasos[pasos.findIndex(s => (ymax - ymin0) / s <= 4)] || 1000;
+  ymax = Math.ceil(ymax / paso) * paso; const ymin = Math.floor(ymin0 / paso) * paso;
   const n = datos.length, bw = (W - L - R) / n;
-  const X = i => L + bw * i + bw / 2, Y = v => T + (H - T - B) * (1 - v / ymax);
+  const X = i => L + bw * i + bw / 2, Y = v => T + (H - T - B) * (1 - (v - ymin) / (ymax - ymin));
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(op.titulo || '')}">`;
-  for (let v = 0; v <= ymax; v += paso) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e8e9e3" stroke-width="1"/><text x="${L - 5}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#8a8c83">${v}</text>`;
+  for (let v = ymin; v <= ymax + 1e-9; v += paso) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e8e9e3" stroke-width="1"/><text x="${L - 5}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#8a8c83">${v}</text>`;
   const hoyI = datos.findIndex(d => d.fut);
   if (hoyI > 0) s += `<rect x="${L + bw * hoyI}" y="${T}" width="${W - R - (L + bw * hoyI)}" height="${H - T - B}" fill="#f3f4f0"/><text x="${W - R}" y="${H - B - 4}" font-size="9.5" text-anchor="end" fill="#8a8c83">pronóstico</text>`;
   let yUlt = -99;
@@ -2796,12 +2804,14 @@ function grafico(datos, op) {
     if (Math.abs(Y(m.y) - yUlt) >= 12) { s += `<text x="${L + 4}" y="${Y(m.y) - 3}" font-size="9.5" fill="#55574f">${esc(m.n)}</text>`; yUlt = Y(m.y); }
   });
   if (op.tipo === 'barra') {
-    datos.forEach((d, i) => { if (d.y > 0) { const w = Math.max(1.5, bw - 2), y = Y(d.y), h = H - B - y; s += `<rect x="${X(i) - w / 2}" y="${y}" width="${w}" height="${h}" rx="${Math.min(3, w / 2)}" fill="${d.fut ? '#9dc0eb' : '#2a78d6'}"/>`; } });
+    datos.forEach((d, i) => { if (d.y > 0) { const w = Math.max(1.5, bw - 2), y = Y(d.y), h = Y(Math.max(0, ymin)) - y; s += `<rect x="${X(i) - w / 2}" y="${y}" width="${w}" height="${h}" rx="${Math.min(3, w / 2)}" fill="${d.col || (d.fut ? '#9dc0eb' : (op.color || '#2a78d6'))}"/>`; } });
   } else {
-    const pts = datos.map((d, i) => `${X(i)},${Y(d.y)}`);
     const iFut = hoyI > 0 ? hoyI : n;
-    s += `<polyline points="${pts.slice(0, iFut).join(' ')}" fill="none" stroke="#2f6b3f" stroke-width="2" stroke-linejoin="round"/>`;
-    if (iFut < n) s += `<polyline points="${pts.slice(iFut - 1).join(' ')}" fill="none" stroke="#2f6b3f" stroke-width="2" stroke-dasharray="4 3"/>`;
+    if (ymin < 0) s += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#8a8c83" stroke-width="1"/>`;
+    const serie = (k, col) => { const pts = datos.map((d, i) => `${X(i)},${Y(d[k])}`); s += `<polyline points="${pts.slice(0, iFut).join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`; if (iFut < n) s += `<polyline points="${pts.slice(iFut - 1).join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 3"/>`; };
+    serie('y', op.color || '#2f6b3f');
+    if (datos.some(d => d.y2 != null)) serie('y2', op.color2 || '#2a78d6');
+    if (op.leyenda) s += `<text x="${W - R}" y="${T + 9}" font-size="9.5" text-anchor="end"><tspan fill="${op.color || '#2f6b3f'}">━ ${esc(op.leyenda[0])}</tspan><tspan fill="${op.color2 || '#2a78d6'}" dx="8">━ ${esc(op.leyenda[1])}</tspan></text>`;
   }
   s += `<line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#cfd2c8"/>`;
   const cada = Math.ceil(n / 6);
@@ -2816,7 +2826,7 @@ function grafico(datos, op) {
       const r = svg.getBoundingClientRect(); const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
       const vx = px * W / r.width; const i = Math.max(0, Math.min(n - 1, Math.floor((vx - L) / bw)));
       const d = datos[i]; cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.style.display = '';
-      tip.innerHTML = `${fFecha(d.x)}${d.fut ? ' (pron.)' : ''}: <b>${n1(d.y)} ${op.unidad || ''}</b>`; tip.style.display = 'block';
+      tip.innerHTML = `${fFecha(d.x)}${d.fut ? ' (pron.)' : ''}: <b>${n1(d.y)} ${op.unidad || ''}</b>${d.y2 != null ? ` · ${op.leyenda ? esc(op.leyenda[1]) + ' ' : ''}<b>${n1(d.y2)} ${op.unidad || ''}</b>` : ''}`; tip.style.display = 'block';
       tip.style.left = Math.max(60, Math.min(r.width - 60, X(i) * r.width / W)) + 'px'; tip.style.top = (Y(d.y) * r.height / H) + 'px';
     };
     const salir = () => { tip.style.display = 'none'; cur.style.display = 'none'; };
@@ -2894,15 +2904,16 @@ function vInicio() {
     h += `<div class="card lote" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° ${esc(l.numero_control)} · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
   });
   if (pend.length) h += `<div class="card"><h2>Pendientes por completar (${pend.length})</h2><div class="tiny">Vinieron de la planilla sin cultivo, fecha o punto GPS. Toca uno para completarlo; mientras tanto no entran en los cálculos.</div>${pend.map(l => `<div class="vent" data-pend="${l.id}" style="cursor:pointer"><span>${esc(l.nombre)}</span><span class="tiny" style="color:var(--bad)">${[!CULTIVOS[l.cultivo] ? 'cultivo' : '', !l.fecha_plantacion ? 'fecha' : '', l.lat == null ? 'GPS' : ''].filter(Boolean).join(', ')}</span></div>`).join('')}</div>`;
+  if (lotes.length) h += `<div class="tiny" style="text-align:center;margin:-4px 0 10px">Mantén apretado un lote para editarlo o borrarlo.</div>`;
   if (inact.length) h += `<details class="card"><summary>Lotes inactivos (${inact.length})</summary>${inact.map(l => `<div class="vent lote" data-id="${l.id}"><span>${esc(l.nombre)}</span><span class="tiny">${CULTIVOS[l.cultivo]}</span></div>`).join('')}</details>`;
   V().innerHTML = h;
   $('#nuevo').onclick = () => ir(() => vLoteForm(null), 'Nuevo lote', true);
   $('#imp').onclick = () => ir(vImportar, 'Importar planilla', true);
-  V().querySelectorAll('[data-pend]').forEach(e => e.onclick = () => ir(() => vLoteForm(e.dataset.pend), 'Completar lote', true));
+  V().querySelectorAll('[data-pend]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } ir(() => vLoteForm(e.dataset.pend), 'Completar lote', true); }; mantener(e, () => menuLote(e.dataset.pend)); });
   if ($('#resu')) $('#resu').onclick = () => ir(vResumen, 'Resumen de lotes', true);
   if ($('#mapaL')) $('#mapaL').onclick = () => ir(vMapa, 'Mapa de lotes', true);
   $('#refr').onclick = () => { sincronizar(); cargarResumenes(lotes, true); };
-  V().querySelectorAll('.lote').forEach(e => e.onclick = () => { const l = DB.lotes.find(x => x.id === e.dataset.id); ir(() => vLote(l.id), l.nombre, true); });
+  V().querySelectorAll('.lote').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } const l = DB.lotes.find(x => x.id === e.dataset.id); ir(() => vLote(l.id), l.nombre, true); }; mantener(e, () => menuLote(e.dataset.id)); });
   cargarResumenes(lotes, false);
 }
 function cargarResumenes(lotes, forzar) {
@@ -2922,6 +2933,45 @@ function cargarResumenes(lotes, forzar) {
         (c.cache ? `<br><span class="tiny">Sin conexión: datos guardados de ${new Date(c.ts).toLocaleString('es-CL')}</span>` : '');
     } catch (e) { est.innerHTML = ''; res.innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
   });
+}
+
+// ---------- Borrar lote y menú al mantener apretado ----------
+function borrarLote(id) {
+  const l = DB.lotes.find(x => x.id === id); if (!l) return;
+  const n = DB.apps.filter(a => a.lote_id === id).length + (DB.visitas || []).filter(a => a.lote_id === id).length + DB.muestreos.filter(a => a.lote_id === id).length;
+  if (!confirm(`¿Eliminar el lote "${l.nombre}"${n ? ` y sus ${n} registros (aplicaciones, visitas y muestreos)` : ''}? No se puede deshacer.`)) return;
+  DB.apps.filter(a => a.lote_id === id).forEach(a => borrarRegistro('apps', a.id));
+  DB.obs.filter(a => a.lote_id === id).forEach(a => borrarRegistro('obs', a.id));
+  DB.muestreos.filter(a => a.lote_id === id).forEach(a => borrarRegistro('muestreos', a.id));
+  (DB.visitas || []).filter(a => a.lote_id === id).forEach(a => borrarRegistro('visitas', a.id));
+  borrarRegistro('lotes', id); LS.del('ac_cache_' + id);
+  toast('Lote eliminado'); pila = []; ir(vInicio, 'AgroClima LP');
+}
+// Mantener apretado ~0,6 s (o clic derecho) abre el menú del elemento
+function mantener(el, fn) {
+  let t = null, x0 = 0, y0 = 0;
+  const cancelar = () => { clearTimeout(t); t = null; el.classList.remove('apretando'); };
+  el.addEventListener('pointerdown', e => { if (e.button > 0) return; x0 = e.clientX; y0 = e.clientY; el.classList.add('apretando'); t = setTimeout(() => { t = null; el.classList.remove('apretando'); el._largo = true; if (navigator.vibrate) try { navigator.vibrate(30); } catch (er) { } fn(); }, 600); });
+  el.addEventListener('pointermove', e => { if (t && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) cancelar(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, cancelar));
+  el.addEventListener('contextmenu', e => { e.preventDefault(); cancelar(); el._largo = true; fn(); setTimeout(() => el._largo = false, 400); });
+}
+function menuLote(id) {
+  const l = DB.lotes.find(x => x.id === id); if (!l) return;
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:340px;margin:28vh auto 0"><h2 style="margin-bottom:2px">${esc(l.nombre)}</h2><div class="tiny" style="margin-bottom:10px">${l.numero_control ? 'N° ' + esc(l.numero_control) + ' · ' : ''}${CULTIVOS[l.cultivo] || 'cultivo pendiente'}${l.variedad ? ' · ' + esc(l.variedad) : ''}</div>
+    <button class="btn blk" data-m="ver">Abrir</button><button class="btn sec blk" data-m="edit" style="margin-top:8px">Editar</button>
+    <button class="btn sec blk" data-m="act" style="margin-top:8px">${l.activo === false ? 'Marcar como activo' : 'Pasar a inactivo (fin de temporada)'}</button>
+    <button class="btn peligro blk" data-m="del" style="margin-top:8px">Borrar</button><button class="btn sec blk" data-m="x" style="margin-top:8px">Cancelar</button></div>`;
+  document.body.appendChild(ov);
+  ov.onclick = e => {
+    const b = e.target.closest('[data-m]'); if (!b && e.target !== ov) return; ov.remove(); if (!b) return;
+    const m = b.dataset.m;
+    if (m === 'ver') ir(() => vLote(id), l.nombre, true);
+    if (m === 'edit') ir(() => vLoteForm(id), 'Editar lote', true);
+    if (m === 'act') { const lo = clon(l); lo.activo = l.activo === false; lo.updated_at = new Date().toISOString(); guardarRegistro('lotes', lo); toast(lo.activo ? 'Lote activo' : 'Lote inactivo'); vInicio(); }
+    if (m === 'del') borrarLote(id);
+  };
 }
 
 // ---------- Vista: Formulario de lote ----------
@@ -2991,14 +3041,7 @@ function vLoteForm(id) {
     document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'inicio'));
     $('#titulo').textContent = o.nombre; $('#btnAtras').style.display = ''; window.scrollTo(0, 0); vLote(o.id);
   };
-  if (id) $('#borrar').onclick = () => {
-    if (!confirm('¿Eliminar este lote y sus aplicaciones? No se puede deshacer.')) return;
-    DB.apps.filter(a => a.lote_id === id).forEach(a => borrarRegistro('apps', a.id));
-    DB.obs.filter(a => a.lote_id === id).forEach(a => borrarRegistro('obs', a.id));
-    DB.muestreos.filter(a => a.lote_id === id).forEach(a => borrarRegistro('muestreos', a.id));
-    borrarRegistro('lotes', id); LS.del('ac_cache_' + id);
-    toast('Lote eliminado'); pila = []; ir(vInicio, 'AgroClima LP');
-  };
+  if (id) $('#borrar').onclick = () => borrarLote(id);
 }
 
 // ---------- Vista: Detalle del lote ----------
@@ -3081,11 +3124,19 @@ async function vLote(id, forzar) {
     <div class="grid3"><div class="kpi"><b>${n1(hd.ppAc)}</b><span>mm desde ${l.cultivo === 'papa' ? 'plantación' : 'siembra'}</span></div><div class="kpi"><b>${n1(pp7)}</b><span>mm últimos 7 días</span></div><div class="kpi"><b>${n1(ppF)}</b><span>mm pronóstico 7 días</span></div></div>
     <div style="margin-top:10px">${grafico(A.S.dias.map(d => ({ x: d.fecha, y: d.pp, fut: d.fecha > hoy })), { tipo: 'barra', unidad: 'mm', titulo: 'Precipitación diaria' })}</div>
     <div class="tiny">Precipitación diaria (mm). Celeste: pronóstico.</div>
+    <h3>Lluvia acumulada desde ${l.cultivo === 'papa' ? 'plantación' : 'siembra'}</h3>
+    <div>${grafico(A.S.dias.map(d => ({ x: d.fecha, y: d.ppAc, fut: d.fecha > hoy })), { tipo: 'linea', unidad: 'mm', titulo: 'Lluvia acumulada', color: '#2a78d6' })}</div>
+    <div class="tiny">Milímetros sumados día a día. Tramo punteado: lo que agrega el pronóstico.</div>
+    <h3>Temperaturas máxima y mínima</h3>
+    <div>${grafico(A.S.dias.map(d => ({ x: d.fecha, y: d.tmax, y2: d.tmin, fut: d.fecha > hoy })), { tipo: 'linea', unidad: '°C', titulo: 'Temperaturas', color: '#c2512b', color2: '#2a78d6', leyenda: ['Máx', 'Mín'] })}</div>
+    <div class="tiny">Las mínimas bajo ${(CFG[l.cultivo] || CFG.papa).base} °C no suman grados día; las heladas (bajo 0 °C) dañan el follaje.</div>
+    ${A.pas.some(d => d.etc != null) ? (() => { let acc = 0; const ser = A.S.dias.map(d => { acc += (d.pp || 0) - (d.etc || 0); return { x: d.fecha, y: Math.round(acc * 10) / 10, fut: d.fecha > hoy }; }); return `<h3>Balance hídrico acumulado (lluvia − consumo)</h3><div>${grafico(ser, { tipo: 'linea', unidad: 'mm', titulo: 'Balance hídrico', color: '#2f6b3f' })}</div><div class="tiny">Sobre 0: llovió más de lo que el cultivo consumió (ET0 × Kc). Bajo 0: déficit acumulado; si baja rápido en tuberización, conviene regar.</div>`; })() : ''}
+    ${l.cultivo === 'papa' && A.S.dias.some(d => d.vs != null) ? `<h3>Riesgo diario de tizón (severidad de Wallin)</h3><div>${grafico(A.S.dias.slice(-40).map(d => ({ x: d.fecha, y: d.vs || 0, fut: d.fecha > hoy, col: d.vs >= 3 ? '#c62828' : d.vs >= 2 ? '#e0a100' : null })), { tipo: 'barra', unidad: 'VS', titulo: 'Severidad de tizón' })}</div><div class="tiny">Valor de 0 a 4 por día según horas de humedad alta y temperatura. Rojo: 3-4 (días muy favorables); amarillo: 2.</div>` : ''}
     <h3>Próximos días</h3><div class="scroll"><table class="tabla"><tr><th>Día</th><th>Mín</th><th>Máx</th><th>mm</th><th>Viento</th><th>HR≥90</th>${l.cultivo === 'papa' ? '<th>Sev. tizón</th>' : ''}</tr>
     ${A.fut.slice(0, 7).map(d => `<tr><td>${fFecha(d.fecha)}</td><td>${n0(d.tmin)}°</td><td>${n0(d.tmax)}°</td><td>${n1(d.pp)}</td><td>${n0(d.viento)}</td><td>${d.h90} h</td>${l.cultivo === 'papa' ? `<td>${d.vs}${d.smith ? ' S' : ''}</td>` : ''}</tr>`).join('')}</table></div>
     <div class="row wrap" style="margin-top:10px"><button class="btn sec grow" id="obs">Anotar lluvia de pluviómetro</button><button class="btn sec grow" id="tabla">Ver tabla diaria</button></div>
     <div class="tiny" style="margin-top:6px">Fuente: Open-Meteo para el punto ${l.lat}, ${l.lon}. Actualizado ${new Date(c.ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })} h</div></div>`;
-  h += htmlProgramaLote(l, A);
+  h += htmlCalendario(l, A);
   h += htmlBalance(l, A);
   h += htmlCrecimiento(l, A);
   // Aplicaciones
@@ -3095,7 +3146,7 @@ async function vLote(id, forzar) {
     ${htmlCarencia(apps)}</div>`;
   h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="editar">Editar lote</button><button class="btn sec grow" id="recargar">Recargar clima</button></div>`;
   V().innerHTML = h;
-  enlazarNorma(l);
+  enlazarNorma(l); enlazarCalendario(l);
   if ($('#l_vis')) $('#l_vis').onclick = () => { vVisita._A = { id: l.id, A }; ir(() => vVisita(l.id), 'Visita a terreno', true); };
   V().querySelectorAll('[data-bv]').forEach(b => b.onclick = () => { if (confirm('¿Borrar esta visita? Se quita también su ajuste.')) { borrarRegistro('visitas', b.dataset.bv); delete memClima[l.id]; vLote(l.id); } });
   $('#editar').onclick = () => ir(() => vLoteForm(id), 'Editar lote', true);
@@ -3325,9 +3376,10 @@ function vAplicaciones() {
   if (lotes.length) { $('#nueva').onclick = () => ir(() => vAppForm(null, filtro || null, null), 'Registrar aplicación', true); $('#fl').onchange = e => { vAplicaciones._f = e.target.value; vAplicaciones(); }; }
   V().querySelectorAll('.vent[data-app]').forEach(e => e.onclick = () => ir(() => vAppForm(e.dataset.app), 'Editar aplicación', true));
 }
-function vAppForm(id, loteId, ven) {
+function vAppForm(id, loteId, ven, pre) {
   const l0 = DB.lotes.find(x => x.id === loteId) || DB.lotes[0] || {};
   const a = id ? clon(DB.apps.find(x => x.id === id)) : { id: uid(), lote_id: l0.id, fecha: hoyStr(), hora: `${pad(new Date().getHours())}:00`, producto: '', ingrediente: '', grupo: '', clase: 'fungicida', tipo: 'contacto', objetivo: l0.cultivo === 'papa' ? 'tizon' : '', dosis_ha: null, unidad: 'L/ha', volumen_ha: null, superficie_ha: l0.superficie_ha || null, carencia_dias: null, viento_kmh: ven && ven.ahora ? Math.round(ven.ahora.viento) : '', notas: '' };
+  if (!id && pre) Object.assign(a, pre);
   const obj = (a.objetivo || '').split(',');
   const prods = DB.prods.slice().sort((x, y) => x.nombre.localeCompare(y.nombre));
   V().innerHTML = `<div class="card">
@@ -3488,6 +3540,7 @@ function vFicha(id) {
   const preg = G.PREGUNTAS.filter(q => q.f === f.id).length;
   h += `<div class="card"><h3 style="margin-top:0">Fuentes</h3><ul class="lst small">${(f.fuentes || []).map(k => `<li>${esc(G.FUENTES[k])}</li>`).join('')}</ul>${preg ? `<button class="btn sec blk" id="f_q">Practicar ${preg} pregunta${preg > 1 ? 's' : ''} de esta ficha</button>` : ''}</div>`;
   V().innerHTML = h;
+  if (f.maleza) cargarFotosMalezas().then(F => { const fs = F[f.maleza]; if (!fs || !V().firstElementChild) return; V().firstElementChild.insertAdjacentHTML('beforeend', `<div class="fotosM">${fs.map((src, i) => `<figure><img src="${src}" alt=""><figcaption class="tiny">${fs.length > 1 ? (i ? 'Plántula' : 'Planta adulta') : 'Foto'}</figcaption></figure>`).join('')}</div><div class="tiny">Fotos: Espinoza, Malezas del Sur de Chile (INIA).</div>`); }).catch(() => { });
   if (f.alerta) $('#f_al').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'inicio')); ir(vInicio, 'AgroClima LP'); };
   if (f.calc) $('#f_calc').onclick = () => abrirCalc(f.calc);
   if (preg) $('#f_q').onclick = () => ir(() => quiz(G.PREGUNTAS.filter(q => q.f === f.id), 'Ficha: ' + f.t), 'Estudiar', true);
@@ -3705,7 +3758,7 @@ const CALC_FN = {
 // ---------- Más ----------
 function vMas() {
   const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
-  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 8</div>`;
+  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 9</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
 function vFuentes() {
@@ -3934,7 +3987,7 @@ async function vResumen() {
       const ven = v ? `${fFecha(v.ini)} ${fHora(v.ini)}–${pad(+fHora(v.fin).slice(0, 2) + 1)}:00` : 'Sin ventana 72 h';
       filas[l.id] = { gd: n0(hd.gdAc), et: A.et ? A.et.actual : '—', pp: n1(hd.ppAc), pp7: n1(pp7), dec: A.dec.global, ven };
       tr.lastElementChild.remove();
-      tr.insertAdjacentHTML('beforeend', `<td>${n0(hd.gdAc)}</td><td>${esc(A.et ? A.et.actual : '—')}</td><td>${n1(hd.ppAc)}</td><td>${n1(pp7)}</td><td>${badge(A.dec.global)}</td><td>${ven}</td>`);
+      tr.insertAdjacentHTML('beforeend', `<td>${n0(hd.gdAc)}</td><td style="text-align:left">${A.et ? `<span style="display:inline-flex;align-items:center;gap:4px">${dibujoEtapa(l.cultivo, A.et.i, 34)}${esc(A.et.actual)}</span>` : '—'}</td><td>${n1(hd.ppAc)}</td><td>${n1(pp7)}</td><td>${badge(A.dec.global)}</td><td>${ven}</td>`);
     } catch (e) { tr.lastElementChild.textContent = e.message; }
     n++; const pr = $('#r_prog'); if (pr) pr.innerHTML = n < lotes.length ? `<span class="spin"></span> Calculando ${n} de ${lotes.length}…` : 'Listo. Para guardarlo en PDF usa el botón PDF de arriba.';
   }
@@ -4309,14 +4362,195 @@ function vMalezas() {
     const q = sinTilde(st.q.toLowerCase().trim());
     const res = G.MALEZAS.filter(m => (!st.tipo || m.tipo === st.tipo) && (!st.ciclo || m.cicloTipo === st.ciclo) && (!st.color || m.color.includes(st.color)) && (!q || q.split(/\s+/).every(w => sinTilde([m.com.join(' '), m.sci, m.fam, m.partes.map(p => p.join(' ')).join(' '), m.hab].join(' ').toLowerCase()).includes(w))));
     const fams = [...new Set(res.map(m => m.fam))].sort();
-    $('#mz_res').innerHTML = res.length ? fams.map(f => `<div class="card"><h3 style="margin-top:0">${esc(f)}</h3>${res.filter(m => m.fam === f).map(m => `<div class="vent" data-ficha="maleza-${m.id}" style="cursor:pointer"><span><b>${esc(m.com[0] || m.sci)}</b>${m.com.length > 1 ? `<span class="tiny"> · ${esc(m.com.slice(1).join(', '))}</span>` : ''}<br><span class="tiny"><i>${esc(m.sci)}</i>${m.cicloTipo ? ' · ' + m.cicloTipo : ''}</span></span><span class="tiny">›</span></div>`).join('')}</div>`).join('') + `<div class="tiny" style="text-align:center">${res.length} de ${G.MALEZAS.length} especies</div>` : '<div class="card vacio">Ninguna especie con esos filtros.</div>';
+    const FT = window.FOTOS_MALEZAS || {};
+    $('#mz_res').innerHTML = res.length ? fams.map(f => `<div class="card"><h3 style="margin-top:0">${esc(f)}</h3>${res.filter(m => m.fam === f).map(m => `<div class="vent" data-ficha="maleza-${m.id}" style="cursor:pointer;justify-content:flex-start;gap:10px">${FT[m.id] ? `<img src="${FT[m.id][0]}" class="mini" alt="">${FT[m.id][1] ? `<img src="${FT[m.id][1]}" class="mini" alt="">` : ''}` : '<span class="mini"></span>'}<span style="flex:1"><b>${esc(m.com[0] || m.sci)}</b>${m.com.length > 1 ? `<span class="tiny"> · ${esc(m.com.slice(1).join(', '))}</span>` : ''}<br><span class="tiny"><i>${esc(m.sci)}</i>${m.cicloTipo ? ' · ' + m.cicloTipo : ''}</span></span><span class="tiny">›</span></div>`).join('')}</div>`).join('') + `<div class="tiny" style="text-align:center">${res.length} de ${G.MALEZAS.length} especies</div>` : '<div class="card vacio">Ninguna especie con esos filtros.</div>';
   };
+  if (!window.FOTOS_MALEZAS) cargarFotosMalezas().then(pintar).catch(() => { });
   $('#mz_q').oninput = e => { st.q = e.target.value; pintar(); };
   $('#mz_col').onchange = e => { st.color = e.target.value; pintar(); };
   V().querySelectorAll('[data-mt]').forEach(b => b.onclick = () => { st.tipo = b.dataset.mt; vMalezas(); });
   V().querySelectorAll('[data-mc]').forEach(b => b.onclick = () => { st.ciclo = b.dataset.mc; vMalezas(); });
   pintar();
 }
+
+// =====================================================================
+// CALENDARIO DE APLICACIONES DEL LOTE: lo que ya debería estar aplicado y lo que viene
+// =====================================================================
+const TIPOS_AP = { fungicida: 'Fungicidas', insecticida: 'Insecticidas', herbicida: 'Herbicidas', fertilizante: 'Fertilización', foliar: 'Foliares', desecante: 'Desecación' };
+const PROGRAMAS_LOTE = { sur: 'Programa fitosanitario del sur', sur5: 'Fitosanitario + insecticidas cada 5 días', lp: 'Calendario La Pampa' };
+function tipoDe(obj, prod) {
+  const o = (obj + ' ' + prod).toLowerCase();
+  if (/follaje|desec|rebrote|reglone|diquat/.test(o)) return 'desecante';
+  if (/maleza|paraquat|metribuzina|herbadox|glifosato/.test(o)) return 'herbicida';
+  if (/pulg|insect|vector/.test(o)) return 'insecticida';
+  if (/tiz|botri|altern|rizoc|desinfec|fusari|sarna/.test(o)) return 'fungicida';
+  if (/cal \+|yeso|muriato|kieserita|mezcla|potasio foliar|urea|fertiliz/.test(o)) return 'fertilizante';
+  return 'foliar';
+}
+function eventosPrograma(prog) {
+  const ev = [], add = (ddp, prod, obj, dosis, etapa, por, tipo) => ev.push({ ddp, prod, obj, dosis, etapa: etapa || '', por: por || [], tipo: tipo || tipoDe(obj, prod) });
+  if (prog === 'lp') {
+    G.CAL_LP.surco.forEach(([p, d]) => add(0, p, 'Rizoctonia, al surco', d, 'Plantación'));
+    G.CAL_LP.fungi.forEach(([d, p, dos]) => add(d, p, 'Tizón tardío', dos, ''));
+    G.CAL_LP.insect.forEach(([d, p, dos, ag]) => add(d, p, 'Pulgones', `${dos} en ${ag} L de agua/ha`, ''));
+    G.CAL_LP.aceite.forEach(([d, ag, l]) => add(d, 'Aceite mineral', 'Pulgones (barrera contra virus no persistentes)', `${String(l).replace('.', ',')} L/ha en ${ag} L de agua`, '', [], 'insecticida'));
+  } else {
+    G.PROG_FITO.forEach(b => b.filas.forEach(f => { const t = tipoDe(f[1], f[0]); if (prog === 'sur5' && t === 'insecticida') return; add(b.ddp, f[0], f[1], f[2], b.etapa, b.por, t); }));
+    if (prog === 'sur5') G.PROG_INSECT.forEach(([d, e, p, dos]) => add(d, p, 'Pulgones', dos, e, [], 'insecticida'));
+  }
+  G.PROG_MALEZAS.filter(m => !/Desecante/.test(m[2]) || prog === 'lp').forEach(([d, m, p, dos, por]) => add(d, p, 'Malezas', dos, m, [[por, 'programas']], /Desecante/.test(p) ? 'desecante' : 'herbicida'));
+  const mom = { 'Preplantación': -7, 'Plantación': 0, 'Emergencia': 30, 'Aporca': 25, 'Post floración': 85 };
+  G.FERT_PLAN.forEach(([m, p, d, por]) => add(mom[m] ?? 0, p, m === 'Emergencia' || m === 'Post floración' ? 'Nutrición foliar' : 'Fertilización', d, m, por ? [[por, 'programas']] : [], /foliar|Aminoácidos|Bioestimulante/i.test(p) ? 'foliar' : 'fertilizante'));
+  return ev.sort((a, b) => a.ddp - b.ddp);
+}
+function cruzarAplicaciones(l, ev) {
+  const apps = DB.apps.filter(a => a.lote_id === l.id).map(a => Object.assign({}, a, { _usada: false }));
+  const pal = s => String(s || '').toLowerCase().split(/[\s(+,/]+/).filter(w => w.length > 3);
+  ev.forEach(e => {
+    e.fecha = M.sumarDias(l.fecha_plantacion, e.ddp);
+    const cands = apps.filter(a => !a._usada && Math.abs(M.difDias(e.fecha, a.fecha)) <= 5 && (a.clase === e.tipo || pal(a.producto).some(w => pal(e.prod).includes(w)) || (e.tipo === 'fungicida' && /tizon|botritis|alternaria/.test(a.objetivo || '')) || (e.tipo === 'insecticida' && /pulg/.test(a.objetivo || ''))));
+    cands.sort((x, y) => Math.abs(M.difDias(e.fecha, x.fecha)) - Math.abs(M.difDias(e.fecha, y.fecha)));
+    if (cands[0]) { cands[0]._usada = true; e.app = cands[0]; }
+  });
+  return apps.filter(a => !a._usada);
+}
+function htmlCalendario(l, A) {
+  const N = l.norma || {}, prog = N.prog || 'sur', filt = htmlCalendario._f || '';
+  if (l.cultivo !== 'papa') {
+    const apps = DB.apps.filter(a => a.lote_id === l.id).sort((a, b) => a.fecha < b.fecha ? 1 : -1);
+    return `<div class="card" id="calCard"><h2>Calendario de aplicaciones</h2><div class="tiny">Aún no hay un programa de referencia de cereales cargado: si me mandas el que usan, lo agrego igual que en papa. Abajo están tus aplicaciones registradas.</div>${apps.length ? apps.map(a => htmlAppFila(a)).join('') : ''}</div>`;
+  }
+  const hoy = hoyStr(), ddp = M.difDias(l.fecha_plantacion, hoy);
+  const ev = eventosPrograma(prog), extra = cruzarAplicaciones(l, ev);
+  const vis = ev.filter(e => !filt || e.tipo === filt);
+  const pas = vis.filter(e => e.fecha <= hoy), fut = vis.filter(e => e.fecha > hoy);
+  const faltan = pas.filter(e => !e.app), hechas = pas.filter(e => e.app);
+  const fila = (e, i) => `<div class="vent cal ${e.app ? 'ok' : e.fecha <= hoy ? 'falta' : ''}" style="align-items:flex-start"><span style="flex:1"><b>${fFechaL(e.fecha)}</b> <span class="tiny">${e.ddp < 0 ? 'antes de plantar' : e.ddp + ' DDP'}${e.etapa ? ' · ' + esc(e.etapa) : ''}</span><br>${esc(e.prod)} <span class="tag">${TIPOS_AP[e.tipo]}</span><br><span class="tiny">${esc(e.obj)} · ${esc(e.dosis)}${G.grupoDe && G.grupoDe(e.prod) ? ' · grupo ' + esc(G.grupoDe(e.prod)) : ''}</span>
+    ${e.app ? `<br><span class="small">✓ Registrada el ${fFechaL(e.app.fecha)}: ${esc(e.app.producto || '')}</span>` : e.fecha <= hoy ? `<br><span class="small" style="color:var(--bad)">✕ No hay aplicación registrada cerca de esa fecha</span>` : `<br><span class="small">En ${M.difDias(hoy, e.fecha)} días</span>`}</span>
+    ${!e.app ? `<button class="btn sec noRes" data-reg="${i}" style="padding:4px 8px">Registrar</button>` : ''}</div>`;
+  const idx = e => ev.indexOf(e);
+  let h = `<div class="card" id="calCard"><div class="row"><h2 class="grow" style="margin:0">Calendario de aplicaciones</h2><span class="tiny">${ddp} DDP</span></div>
+    <select id="cal_prog" style="margin-top:6px">${Object.entries(PROGRAMAS_LOTE).map(([k, t]) => `<option value="${k}" ${k === prog ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <div class="row noRes" style="flex-wrap:wrap;gap:4px;margin:8px 0">${[['', 'Todas']].concat(Object.entries(TIPOS_AP)).map(([k, t]) => `<button class="btn ${filt === k ? '' : 'sec'}" data-cf="${k}" style="padding:4px 9px;font-size:12.5px">${t}</button>`).join('')}</div>
+    <div class="grid3"><div class="kpi"><b>${hechas.length}</b><span>registradas</span></div><div class="kpi"><b style="${faltan.length ? 'color:var(--bad)' : ''}">${faltan.length}</b><span>deberían estar aplicadas y no figuran</span></div><div class="kpi"><b>${fut.length}</b><span>vienen</span></div></div>
+    ${fut.length ? `<h3>Lo que viene</h3>${fut.slice(0, 6).map(e => fila(e, idx(e))).join('')}${fut.length > 6 ? `<details><summary class="small">Ver ${fut.length - 6} más</summary>${fut.slice(6).map(e => fila(e, idx(e))).join('')}</details>` : ''}` : ''}
+    ${faltan.length ? `<h3>Deberían estar aplicadas</h3>${faltan.map(e => fila(e, idx(e))).join('')}` : ''}
+    ${hechas.length ? `<details><summary class="small">Ya registradas (${hechas.length})</summary>${hechas.map(e => fila(e, idx(e))).join('')}</details>` : ''}
+    ${extra.length ? `<details><summary class="small">Aplicaciones registradas fuera del programa (${extra.length})</summary>${extra.map(a => htmlAppFila(a)).join('')}</details>` : ''}
+    ${porque('', fundLista([['El calendario se arma con los días desde plantación (DDP) del programa elegido. Una aplicación cuenta como hecha si registraste algo del mismo tipo o el mismo producto hasta 5 días antes o después.', 'programas'], ['El programa ordena los productos y la rotación de grupos, pero no reemplaza a la alerta: si el modelo dice que no hay riesgo, una aplicación de tizón se puede postergar; si hay riesgo alto, se adelanta.', 'programas'], ['Las fechas no se mueven con el clima: si tu cultivo va adelantado o atrasado (lo ves en la visita a terreno), considera el estado de la planta antes que el día exacto.', 'general']]))}
+    <a href="#" class="small" data-ficha="${prog === 'lp' ? 'prog-lapampa' : 'prog-fito'}">Ver el programa completo</a></div>`;
+  htmlCalendario._ev = ev;
+  return h;
+}
+function enlazarCalendario(l) {
+  if (!$('#calCard')) return;
+  const guardar = mod => { const lo = clon(DB.lotes.find(x => x.id === l.id)); lo.norma = Object.assign({ chk: {} }, lo.norma || {}); mod(lo.norma); lo.updated_at = new Date().toISOString(); guardarRegistro('lotes', lo); Object.assign(l, lo); };
+  if ($('#cal_prog')) $('#cal_prog').onchange = e => { guardar(n => n.prog = e.target.value); repintarCal(l); };
+  $('#calCard').querySelectorAll('[data-cf]').forEach(b => b.onclick = () => { htmlCalendario._f = b.dataset.cf; repintarCal(l); });
+  $('#calCard').querySelectorAll('[data-reg]').forEach(b => b.onclick = () => {
+    const e = htmlCalendario._ev[+b.dataset.reg]; const k = G.PROD_IA && Object.keys(G.PROD_IA).find(x => e.prod.toLowerCase().startsWith(x.toLowerCase().split(' (')[0]));
+    const pre = { producto: e.prod.split(/ o |\(/)[0].trim(), clase: e.tipo, fecha: e.fecha <= hoyStr() ? e.fecha : hoyStr(), dosis: e.dosis, objetivo: e.tipo === 'fungicida' ? (/botri/i.test(e.obj) ? 'botritis' : /altern/i.test(e.obj) ? 'alternaria' : 'tizon') : e.tipo === 'insecticida' ? 'pulgones' : '', grupo: G.grupoDe ? G.grupoDe(e.prod) : '', ingrediente: k ? G.PROD_IA[k].ia : '' };
+    ir(() => vAppForm(null, l.id, null, pre), 'Nueva aplicación', true);
+  });
+}
+function repintarCal(l) { const c = $('#calCard'); if (!c) return; const tmp = document.createElement('div'); tmp.innerHTML = htmlCalendario(l, null); c.replaceWith(tmp.firstElementChild); enlazarCalendario(l); }
+
+function cargarFotosMalezas() {
+  if (window.FOTOS_MALEZAS) return Promise.resolve(window.FOTOS_MALEZAS);
+  if (cargarFotosMalezas._p) return cargarFotosMalezas._p;
+  return (cargarFotosMalezas._p = new Promise((ok, mal) => { const sc = document.createElement('script'); sc.src = 'malezas_fotos.js'; sc.onload = () => ok(window.FOTOS_MALEZAS || {}); sc.onerror = () => { cargarFotosMalezas._p = null; mal(new Error('Sin fotos')); }; document.head.appendChild(sc); }));
+}
+
+// =====================================================================
+// SUELOS DEL SUR Y PLAN DE FERTILIZACIÓN COMPLETO
+// =====================================================================
+const SUELOS = {
+  trumao: { n: 'Trumao (Andisol de cenizas volcánicas recientes)', tablaN: 'trumao', tablaP: 'trumao', fP: 1, da: 0.75, mo: 15, ph: '5,2-5,8', nMO: 3, ej: 'Series Osorno, Puyehue, Los Lagos, Freire (ejemplos)', prop: ['Esponjoso, liviano (densidad aparente 0,6-0,9) y muy bien drenado: el tubérculo crece sin deformarse.', 'La alofana fija gran parte del fósforo aplicado: por eso las dosis de P son altas y conviene localizarlo en la línea.', 'Mucha materia orgánica (10-20 %), pero muy estable: mineraliza poco N por cada % de MO.', 'Ácido, con aluminio que puede limitar raíces si la saturación pasa de 10-20 %; el encalado mejora P, Ca y Mg.'] },
+  nadi: { n: 'Ñadi (Andisol con mal drenaje, sobre fierrillo)', tablaN: 'trumao', tablaP: 'trumao', fP: 1.1, da: 0.7, mo: 18, ph: '5,0-5,6', nMO: 2.5, ej: 'Depresión intermedia de Los Lagos y Llanquihue (ejemplos: Frutillar, Alerce)', prop: ['Suelo delgado (30-60 cm) sobre un estrato cementado (fierrillo) que impide el drenaje: se satura en invierno.', 'Exceso de agua en el período de tubérculos favorece sarna polvorienta y pudriciones: elegir potreros drenados o con zanjas.', 'Fijación de P muy alta y alta acidez; el N se pierde por desnitrificación cuando se encharca: parcializar.'] },
+  rojo: { n: 'Rojo arcilloso (Ultisol o Alfisol de cenizas antiguas)', tablaN: 'rojo', tablaP: 'rojo', fP: 1, da: 1.2, mo: 6, ph: '5,3-6,0', nMO: 12, ej: 'Lomajes y Cordillera de la Costa (ejemplos: Collipulli, Metrenco, Cudico)', prop: ['Más arcilla y densidad: se compacta y forma terrones; preparar profundo (30-40 cm) y no trabajarlo mojado.', 'Fija menos fósforo que el trumao: dosis de P más bajas para el mismo análisis.', 'Menos materia orgánica (4-8 %) pero que mineraliza más N por cada %.', 'Retiene bien el agua, pero el drenaje es más lento: cuidar el anegamiento.'] },
+  transicion: { n: 'Transición trumao-rojo arcilloso', tablaN: 'trumao', tablaP: 'rojo', fP: 1.15, da: 0.95, mo: 10, ph: '5,2-5,8', nMO: 6, ej: 'Pie de lomajes entre la depresión intermedia y la costa (ejemplos)', prop: ['Características intermedias: fija P más que un rojo arcilloso, pero menos que un trumao.', 'Usa las tablas mixtas y corrige con el análisis.'] },
+  aluvial: { n: 'Aluvial de terrazas (Inceptisol o Entisol)', tablaN: 'rojo', tablaP: 'rojo', fP: 0.9, da: 1.3, mo: 4, ph: '5,5-6,5', nMO: 14, ej: 'Vegas y terrazas de ríos', prop: ['Textura variable (franco a arenoso), pedregosidad posible: revisar profundidad útil.', 'Fija poco P; poca MO, el N del suelo dura poco: parcializar el nitrogenado.', 'Riesgo de heladas en terrazas bajas y de inundación en invierno.'] },
+  arena: { n: 'Arenas o trumao arenoso (Entisol volcánico)', tablaN: 'rojo', tablaP: 'rojo', fP: 0.85, da: 1.3, mo: 3, ph: '5,5-6,2', nMO: 12, ej: 'Sectores de arenas volcánicas y dunas antiguas', prop: ['Retiene poca agua y pocos nutrientes: el K y el N se lavan con la lluvia o el riego.', 'Parcializar N y K, riego frecuente y de poca lámina.', 'La sarna común se favorece en suelos secos y livianos al inicio de la tuberización.'] },
+  organico: { n: 'Orgánico o turba (Histosol)', tablaN: 'trumao', tablaP: 'trumao', fP: 1, da: 0.35, mo: 40, ph: '4,5-5,3', nMO: 1, ej: 'Chiloé y sectores de turberas (ejemplos)', prop: ['Muy ácido, liviano y con mucha agua: el pH se corrige con cal en varias temporadas.', 'Puede faltar cobre, boro y zinc.', 'Si se drena mucho, la turba se oxida y se pierde: manejo cuidadoso.'] }
+};
+const ANTEC = {
+  deg: { n: 'Pradera degradada o antigua (más de 5 años)', base: 'deg', cred: 0, av: 'Revisa gusano blanco antes de plantar (hoyos de 30 × 30 cm): las praderas viejas son su hábitat.' },
+  leg: { n: 'Pradera con trébol (leguminosa, 3 años o más)', base: 'leg', cred: 0, av: '' },
+  rot: { n: 'Pradera recién roturada (menos de 1 año desde la rotura)', base: 'deg', cred: -10, av: 'La materia orgánica de la pradera recién incorporada todavía inmoviliza N al inicio. Revisa gusano blanco y gusano cortador.' },
+  cereal: { n: 'Cereal (trigo, avena, cebada)', base: 'deg', cred: -15, av: 'El rastrojo de cereal (relación C/N alta) inmoviliza N al descomponerse: no lo incorpores justo antes de plantar.' },
+  raps: { n: 'Raps, lupino o leguminosa de grano', base: 'leg', cred: -10, av: '' },
+  barbecho: { n: 'Barbecho o cultivo de cobertura', base: 'mix', cred: 0, av: '' },
+  papa: { n: 'Papa u otra solanácea', base: 'mix', cred: 0, av: 'Para semilla certificada la norma SAG exige 4 años sin papa ni solanáceas. Aun para consumo, repetir papa aumenta rizoctonia, sarna y nematodos.' }
+};
+CALCS.fertCompleto = ['Plan de fertilización completo', 'Tipo de suelo, cultivo anterior, análisis completo, encalado y micronutrientes'];
+CALC_FN.fertCompleto = function () {
+  const st = vNum => vNum;
+  V().innerHTML = `<div class="card"><h3 style="margin-top:0">Potrero</h3>
+    <label>Tipo de suelo</label><select id="fc_s">${Object.entries(SUELOS).map(([k, v]) => `<option value="${k}">${v.n}</option>`).join('')}</select><div id="fc_sd" class="tiny"></div>
+    <label>Cultivo anterior</label><select id="fc_a">${Object.entries(ANTEC).map(([k, v]) => `<option value="${k}">${v.n}</option>`).join('')}</select>
+    <div class="grid2"><div><label>Destino</label><select id="fc_d"><option value="semilla">Semilla (semillero)</option><option value="consumo">Consumo</option></select></div><div><label>Riego</label><select id="fc_r"><option value="no">Secano</option><option value="si">Con riego</option></select></div></div>
+    ${campoN('fc_rend', 'Rendimiento esperado (t/ha)', 40)}
+    <h3>Análisis de suelo (deja vacío lo que no tengas)</h3>
+    <div class="grid3">${campoN('fc_mo', 'Materia orgánica (%)', '', 0.1)}${campoN('fc_ph', 'pH en agua', '', 0.1)}${campoN('fc_al', 'Al intercambiable (cmol/kg)', '', 0.01)}${campoN('fc_p', 'P Olsen (ppm)', '', 0.1)}${campoN('fc_k', 'K (ppm)', '', 1)}${campoN('fc_ca', 'Ca (cmol/kg)', '', 0.01)}${campoN('fc_mg', 'Mg (cmol/kg)', '', 0.01)}${campoN('fc_na', 'Na (cmol/kg)', '', 0.01)}${campoN('fc_so', 'S disponible (ppm)', '', 0.1)}${campoN('fc_zn', 'Zn (ppm)', '', 0.01)}${campoN('fc_b', 'B (ppm)', '', 0.01)}${campoN('fc_prof', 'Profundidad a corregir (cm)', 20, 1)}</div>
+    <h3>Fertilizantes que usarás</h3><div class="grid3">${campoN('fc_un', '% N del nitrogenado', 46)}${campoN('fc_up', '% P₂O₅ del fosforado', 46)}${campoN('fc_uk', '% K₂O del potásico', 60)}</div>
+    <div id="fc_res"></div></div>`;
+  enVivo(() => {
+    const s = $('#fc_s').value, S = SUELOS[s], a = $('#fc_a').value, A = ANTEC[a], dest = $('#fc_d').value, riego = $('#fc_r').value === 'si';
+    $('#fc_sd').innerHTML = `${esc(S.ej)} · MO típica ${S.mo} % · pH típico ${S.ph} · densidad aparente ~${String(S.da).replace('.', ',')}<ul class="lst">${S.prop.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`;
+    const r = vN('fc_rend'); if (!r) { $('#fc_res').innerHTML = '<div class="aviso">Pon el rendimiento esperado.</div>'; return; }
+    const REND = [25, 35, 45, 55], TN = { 'rojo-deg': [90, 140, 210, 300], 'rojo-leg': [60, 100, 180, 250], 'trumao-deg': [50, 75, 160, 220], 'trumao-leg': [40, 60, 75, 140] };
+    const tN = b => interp(REND, TN[`${S.tablaN}-${b}`], r);
+    let nBase = A.base === 'mix' ? (tN('deg') + tN('leg')) / 2 : tN(A.base);
+    const pasos = [`Base INIA (Sierra 1993) para ${S.tablaN === 'trumao' ? 'trumao' : 'rojo arcilloso'}, antecedente ${A.base === 'mix' ? 'intermedio' : A.base === 'leg' ? 'leguminosa' : 'pradera degradada'} y ${nf(r, 0)} t/ha: ${n0(nBase)} kg N/ha.`];
+    let nAj = nBase;
+    if (A.cred) { nAj -= A.cred; pasos.push(`Cultivo anterior (${A.n.toLowerCase()}): ${A.cred < 0 ? '+' : '−'}${Math.abs(A.cred)} kg por inmovilización o aporte.`); }
+    const mo = vN('fc_mo');
+    if (mo != null) { const d = Math.max(-40, Math.min(40, (mo - S.mo) * S.nMO)); if (Math.abs(d) >= 3) { nAj -= d; pasos.push(`Materia orgánica ${nf(mo, 1)} % frente a ${S.mo} % típico del suelo: ${d > 0 ? '−' : '+'}${n0(Math.abs(d))} kg (cada % extra entrega unos ${S.nMO} kg de N en este suelo).`); } }
+    if (s === 'organico') { nAj *= 0.85; pasos.push('Suelo orgánico: −15 % por la mineralización de la turba.'); }
+    if (riego) { nAj *= 1.1; pasos.push('Con riego el rendimiento y la absorción son más parejos: +10 %.'); }
+    if (dest === 'semilla') { nAj *= 0.85; pasos.push('Semillero: −15 % para no alargar el ciclo ni el follaje (más tizón y más difícil de secar).'); }
+    nAj = Math.max(0, nAj);
+    // P
+    const pp = vN('fc_p'), PX = [5, 10, 15, 20, 25], TP = { trumao: [[200, 100, 80, 60, 50], [330, 200, 120, 70, 60], [460, 360, 250, 150, 100], [600, 470, 350, 240, 140]], rojo: [[160, 90, 70, 50, 40], [250, 170, 110, 75, 60], [360, 280, 200, 110, 70], [440, 360, 280, 190, 110]] };
+    const p = pp != null ? interp2(REND, PX, TP[S.tablaP], r, pp) * S.fP : null;
+    // K
+    let kk = vN('fc_k'); const KX = [50, 100, 150, 200, 250], TK = [[140, 100, 80, 60, 50], [250, 140, 120, 100, 80], [360, 250, 160, 120, 100], [460, 350, 240, 180, 120]];
+    let k = kk != null ? interp2(REND, KX, TK, r, kk) : null; if (k != null && (s === 'arena' || s === 'aluvial')) k *= 1.1;
+    // Encalado
+    const ph = vN('fc_ph'), al = vN('fc_al'), ca = vN('fc_ca'), mg = vN('fc_mg'), na = vN('fc_na') || 0, prof = vN('fc_prof') || 20;
+    const kc = kk != null ? kk / 391 : null, cice = (ca != null && mg != null && kc != null) ? ca + mg + kc + na + (al || 0) : null;
+    const satAl = cice && al != null ? 100 * al / cice : null;
+    let cal = null, calTxt = '';
+    if (al != null && al > 0.1) { cal = 1.5 * al * (S.da / 1) * (prof / 20); calTxt = `Cal (CaCO₃) ≈ 1,5 × Al ${nf(al)} cmol/kg × densidad ${nf(S.da)} × (${prof} cm / 20) = ${nf(cal, 1)} t/ha`; }
+    else if (ph != null && ph < 5.3) { cal = s === 'rojo' || s === 'aluvial' || s === 'arena' ? 1.5 : 2; calTxt = `Sin dato de aluminio: con pH ${nf(ph, 1)} se sugiere ${cal} t/ha como referencia (mejor medir Al intercambiable).`; }
+    // Secundarios y micro
+    const ext = [];
+    const sb = cice ? cice - (al || 0) : null;
+    if (mg != null && (mg < 0.5 || (sb && 100 * mg / sb < 6))) ext.push(['Magnesio', `Mg bajo (${nf(mg)} cmol/kg${sb ? `, ${nf(100 * mg / sb, 0)} % de las bases` : ''}): 50-80 kg/ha de MgO (kieserita, sulfato de magnesio o cal dolomítica en el encalado).`]);
+    if (ca != null && sb && 100 * ca / sb < 65) ext.push(['Calcio', `Ca bajo respecto de las bases (${nf(100 * ca / sb, 0)} %): el encalado o el yeso lo corrigen; en papa el Ca mejora la firmeza del tubérculo y baja el corazón hueco.`]);
+    const so = vN('fc_so'); if (so != null && so < 10) ext.push(['Azufre', `S bajo (${nf(so, 1)} ppm): 30-40 kg/ha de S (yeso, kieserita o sulfato de potasio).`]);
+    const zn = vN('fc_zn'); if (zn != null && zn < 1) ext.push(['Zinc', `Zn bajo (${nf(zn)} ppm): 3-5 kg/ha de Zn al suelo o foliar en emergencia.`]);
+    const bb = vN('fc_b'); if (bb != null && bb < 0.5) ext.push(['Boro', `B bajo (${nf(bb)} ppm): 1-1,5 kg/ha de B; no pasarse, el boro es tóxico en exceso.`]);
+    if (kk != null && mg != null && kc / mg > 0.3) ext.push(['Equilibrio K/Mg', `K/Mg alto (${nf(kc / mg)}): el exceso de potasio frena la absorción de Mg y Ca; no subas el K sin agregar Mg.`]);
+    if (ph != null && ph > 5.8 && dest === 'semilla') ext.push(['pH y sarna común', `pH ${nf(ph, 1)}: sobre 5,8 aumenta la sarna común. No encalar más.`]);
+    if (s === 'organico') ext.push(['Cobre', 'En suelos orgánicos suele faltar Cu: considera un análisis de micronutrientes.']);
+    const un = vN('fc_un'), up = vN('fc_up'), uk = vN('fc_uk');
+    const nPlant = nAj <= 120 ? 1 : (s === 'arena' || s === 'aluvial' || s === 'nadi') ? 0.5 : 0.6;
+    const prod = (x, ley) => x != null && ley ? ` → <b>${n0(x / ley * 100)} kg/ha</b> de producto` : '';
+    $('#fc_res').innerHTML = `<h3>Resultado</h3>
+      <div class="vent"><span><b>Nitrógeno: ${n0(nAj)} kg N/ha</b>${prod(nAj, un)}<br><span class="tiny">${nPlant === 1 ? 'Todo a la plantación (dosis media).' : `${n0(nAj * nPlant)} kg a la plantación y ${n0(nAj * (1 - nPlant))} kg a la aporca${nPlant === 0.5 ? ' (suelo que pierde N: parcializar más)' : ''}.`}</span></span></div>
+      ${p != null ? `<div class="vent"><span><b>Fósforo: ${n0(p)} kg P₂O₅/ha</b>${prod(p, up)}<br><span class="tiny">Todo a la plantación, localizado en la línea${S.fP > 1 ? ` · +${Math.round((S.fP - 1) * 100)} % por mayor fijación de este suelo` : S.fP < 1 ? ` · −${Math.round((1 - S.fP) * 100)} % porque fija menos` : ''}.</span></span></div>` : '<div class="tiny">Pon el P Olsen para calcular el fósforo.</div>'}
+      ${k != null ? `<div class="vent"><span><b>Potasio: ${n0(k)} kg K₂O/ha</b>${prod(k, uk)}<br><span class="tiny">${s === 'arena' || s === 'aluvial' ? 'Parcializar: mitad a la plantación y mitad a la aporca (+10 % por lavado). ' : ''}Si es muriato (cloruro), aplícalo antes de plantar: el cloro daña la semilla y baja la materia seca.</span></span></div>` : '<div class="tiny">Pon el K para calcular el potasio.</div>'}
+      ${cal != null ? `<div class="vent"><span><b>Encalado: ${nf(cal, 1)} t/ha de cal</b><br><span class="tiny">${calTxt}${satAl != null ? ` · saturación de Al actual: ${nf(satAl, 0)} %` : ''}. Incorporar 1 a 2 meses antes de plantar. En papa semilla no subir el pH sobre 5,8 (sarna común).</span></span></div>` : satAl != null ? `<div class="tiny">Saturación de Al: ${nf(satAl, 0)} %: no requiere cal.</div>` : ''}
+      ${ext.map(([t, x]) => `<div class="vent"><span><b>${t}</b><br><span class="tiny">${esc(x)}</span></span></div>`).join('')}
+      ${A.av ? `<div class="aviso">${esc(A.av)}</div>` : ''}
+      ${porque('cálculo', `<div class="sub">Cómo se calculó el nitrógeno</div><ul class="pasos">${pasos.map(x => `<li class="info">${esc(x)}</li>`).join('')}<li class="fin">Resultado: ${n0(nAj)} kg N/ha.</li></ul>
+        <div class="sub">Fósforo, potasio y cal</div><div class="small">P y K salen de las tablas INIA interpoladas por rendimiento y análisis (P con la tabla de ${S.tablaP === 'trumao' ? 'trumao' : 'rojo arcilloso'}; K con la de trumao). Los factores por tipo de suelo y la fórmula de cal (1,5 t de CaCO₃ por cada cmol de Al, ajustada por densidad y profundidad) son referencias generales: confírmalas con tu asesor y con el análisis.</div>
+        <div class="sub">Fundamento</div>${fundLista([['La dosis es lo que exporta el cultivo menos lo que entrega el suelo: por eso el cultivo anterior, la materia orgánica y el análisis la cambian.', 'manual'], ['En trumaos y ñadis la alofana fija el fósforo: se aplica alto y localizado, y el encalado aumenta su disponibilidad.', 'general'], ['El aluminio intercambiable sobre 10-20 % de saturación daña las raíces; la cal lo neutraliza y aporta calcio.', 'general'], ['El nitrógeno en exceso alarga el ciclo y el follaje: en semilleros complica el secado y aumenta el tizón.', 'general']])}`)}
+      <div class="tiny">Base: tablas de Sierra (1993) del manual INIA. Los tipos de suelo, factores y ajustes son referencias generales (no de tus archivos); si me mandas el libro de Luzio (Suelos de Chile), los reemplazo con sus datos por serie.</div>`;
+  });
+};
+G.FICHAS.push({ id: 'suelos-sur', cat: 'manejo', t: 'Suelos del sur de Chile para papa', calc: 'fertCompleto', res: 'Los tipos de suelo más comunes entre La Araucanía y Chiloé, y qué cambian en la fertilización y el manejo de la papa.', sec: Object.values(SUELOS).map(S => ({ h: S.n, p: S.prop.concat([`MO típica ${S.mo} %, pH ${S.ph}, densidad aparente ~${String(S.da).replace('.', ',')}. ${S.ej}.`]) })), fuentes: ['general', 'manual'] });
 
 // ---------- Vista: Clima aquí (GPS actual) ----------
 async function vAqui() {
