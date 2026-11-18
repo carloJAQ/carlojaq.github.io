@@ -2173,6 +2173,30 @@ if (typeof module !== 'undefined') module.exports = G;
 // ================= PROGRAMAS DE REFERENCIA (semilleros de papa, sur de Chile) =================
 (() => {
   G.FUENTES.programas = 'Programas de semilleros de papa del sur de Chile, temporadas 2021-22 a 2024-25 (fitosanitario, insecticidas, malezas y fertilización), entregados por Carlos.';
+  G.FUENTES.bodegaLP = 'Listado de productos fitosanitarios en bodega para papa, INIA La Pampa (planilla QUIMICOS_PAPA, llegada 18-11-2026, entregada por Carlos).';
+  // Stock que llegó a bodega (planilla QUIMICOS_PAPA). [categoría, producto, ingrediente, empresa, alternativa, empresa alt., cantidad, unidad, grupo, movilidad]
+  G.STOCK_LP = { fecha: '2026-11-18', items: [
+    ['insecticida', 'Excelto', 'Tiametoxam', 'Syngenta', '', '', 40, 'L', '4A', 'sistemico'],
+    ['insecticida', 'Azyra', 'Ciantraniliprol', 'FMC', '', '', 25, 'L', '28', 'sistemico'],
+    ['insecticida', 'Engeo', 'Tiametoxam + lambda-cihalotrina', 'Syngenta', 'Órbita SC', 'Anasac', 5, 'L', '4A + 3A', 'sistemico'],
+    ['insecticida', 'Chess', 'Pimetrozina', 'Syngenta', '', '', 12, 'kg', '9B', 'sistemico'],
+    ['insecticida', 'Punto', 'Imidacloprid', 'Anasac', '', '', 2, 'kg', '4A', 'sistemico'],
+    ['insecticida', 'Turbine', 'Flonicamida', 'Syngenta', '', '', 8, 'kg', '29', 'sistemico'],
+    ['insecticida', 'Hurricane', 'Acetamiprid', 'Anasac', '', '', 3, 'kg', '4A', 'sistemico'],
+    ['insecticida', 'Gladiador', 'Acetamiprid + lambda-cihalotrina', 'Anasac', '', '', 7, 'kg', '4A + 3A', 'sistemico'],
+    ['fungicida', 'Moxan MZ', 'Mancozeb + cimoxanilo', 'Anasac', '', '', 50, 'kg', 'M3 + 27', 'translaminar'],
+    ['fungicida', 'Bravo', 'Clorotalonil', 'Syngenta', '', '', 250, 'L', 'M5', 'contacto'],
+    ['fungicida', 'Revus Top', 'Mandipropamid + difenoconazol', 'Syngenta', '', '', 40, 'L', '40 + 3', 'translaminar'],
+    ['fungicida', 'Infinito', 'Propamocarb + fluopicolide', 'Bayer', '', '', 125, 'L', '28 + 43', 'sistemico'],
+    ['fungicida', 'Mancozeb', 'Mancozeb', 'Genérico', '', '', 125, 'kg', 'M3', 'contacto'],
+    ['fungicida', 'Forum', 'Dimetomorfo', 'BASF', '', '', 3, 'L', '40', 'translaminar'],
+    ['fungicida', 'Emesto Fusion', 'Fluoxastrobina + penflufen', 'Bayer', '', '', 50, 'L', '11 + 7', 'sistemico'],
+    ['fungicida', 'Priori', 'Azoxistrobina', 'Syngenta', 'Impulso 25 SC', 'Anasac', 50, 'L', '11', 'translaminar'],
+    ['herbicida', 'Sencor', 'Metribuzina', 'Bayer', 'Bectra 48 SC', 'Anasac', 32, 'L', '5 (C1)', 'sistemico'],
+    ['herbicida', 'Herbadox 45 CS', 'Pendimetalina', 'BASF', 'Spectro 33 EC', 'Anasac', 75, 'L', '3 (K1)', 'sistemico'],
+    ['herbicida', 'Centurion', 'Cletodima', 'UPL (ex Arysta LifeScience)', 'Aquiles 24 EC', 'Anasac', 25, 'L', '1 (A)', 'sistemico'],
+    ['fungicida', 'Fosfito de potasio', 'Fosfito de potasio', 'Varios proveedores', '', '', 150, 'L', 'P07', 'sistemico']
+  ] };
   G.FUENTES.calendarioLP = 'Calendario de aplicaciones recomendado para semilleros de La Pampa (entregado por Carlos).';
   G.CATS.programas = 'Programas de referencia (sur de Chile)';
 
@@ -2180,7 +2204,7 @@ if (typeof module !== 'undefined') module.exports = G;
   const PROD_IA = {
     'Vibrance Gold': { ia: 'sedaxane + fludioxonil', g: '7 + 12', c: 'fungicida', m: 'sistemico', v: 'verificar' },
     'Emesto Silver': { ia: 'penflufen + protioconazol', g: '7 + 3', c: 'fungicida', m: 'sistemico', v: 'conocido' },
-    'Emesto Fusion': { ia: 'penflufen + otro', g: '7 + ?', c: 'fungicida', m: 'sistemico', v: 'verificar' },
+    'Emesto Fusion': { ia: 'fluoxastrobina + penflufen', g: '11 + 7', c: 'fungicida', m: 'sistemico', v: 'bodega' },
     'Azoxistrobina': { ia: 'azoxistrobina', g: '11', c: 'fungicida', m: 'translaminar', v: 'archivo' },
     'Reflect Xtra': { ia: 'isopyrazam + ciproconazol', g: '7 + 3', c: 'fungicida', m: 'sistemico', v: 'verificar' },
     'Elatus': { ia: 'benzovindiflupyr (+ azoxistrobina)', g: '7 (+ 11)', c: 'fungicida', m: 'sistemico', v: 'verificar' },
@@ -2219,7 +2243,7 @@ if (typeof module !== 'undefined') module.exports = G;
     'Karate Zeon': { ia: 'lambda-cihalotrina', g: '3A', c: 'insecticida', m: 'contacto', v: 'archivo' },
     'Versys': { ia: 'afidopiropeno', g: '9D', c: 'insecticida', m: 'sistemico', v: 'archivo' },
     'Turbine': { ia: 'flonicamid', g: '29', c: 'insecticida', m: 'sistemico', v: 'archivo' },
-    'Punto': { ia: 'ver etiqueta', g: '?', c: 'insecticida', m: 'sistemico', v: 'verificar' },
+    'Punto': { ia: 'imidacloprid', g: '4A', c: 'insecticida', m: 'sistemico', v: 'bodega' },
     'ELF 22 (Pure Spray)': { ia: 'aceite mineral parafínico', g: '—', c: 'otro', m: 'contacto', v: 'archivo' },
     'Paraquat': { ia: 'paraquat', g: '22 (D)', c: 'herbicida', m: 'contacto', v: 'archivo' },
     'Glifosato': { ia: 'glifosato', g: '9 (G)', c: 'herbicida', m: 'sistemico', v: 'archivo' },
@@ -2342,7 +2366,7 @@ if (typeof module !== 'undefined') module.exports = G;
       { h: 'Aceite mineral', p: [`De 15 a 99 DDP, cada 7 días, subiendo el agua de 200 a 500 L/ha y el aceite de 1 a 2,5 L/ha a medida que crece el follaje.`, 'Notas del calendario: pasar a cada 5 días, porque la dosis en uso era 4 veces la de etiqueta y tapa los estomas, con alto riesgo de fitotoxicidad.'] },
       { h: 'Al surco', p: CAL_LP.surco.map(([p, d]) => `${p}: ${d}.`).concat(['Recomendación del calendario: azoxistrobina + Emesto Fusion (dosis de Priori, 1 L/ha).']) },
       { h: 'Reglas del calendario', p: ['Si hay tizón tardío: Forum + Infinito, dos veces seguidas cada 5 días.', 'Si hay tizón de flor asociado a Botrytis: sumar Bravo o mancozeb al fungicida.'] },
-      { h: 'Análisis técnico', p: ['Infinito va dos veces seguidas (66 y 73 DDP): repite los grupos 43 + 28. FRAG pide alternancia estricta, así que conviene intercalar otro grupo entre ambas, por ejemplo 21 (cyazofamid) o 45 + 40.', 'Ante un brote, Forum + Infinito junta tres modos de acción (40, 43 y 28), pero FRAG advierte que no conviene "perseguir" la epidemia con aplicaciones erradicantes: lo correcto es proteger antes, guiado por la alerta.', 'Al final se repite Bravo (M5): como multisitio, repetirlo no genera resistencia, pero solo protege. Si la alerta marca riesgo alto en esa etapa, conviene agregar un grupo con acción en el tubérculo.', 'Los insecticidas cambian de grupo en cada aplicación (28, 4A + 3A, 9B, ?, 9B, 28 y 29): bien rotados. Cada 14 días es un intervalo largo para un semillero; el aceite cada 5-7 días cubre el PVY entre medio.'] }
+      { h: 'Análisis técnico', p: ['Infinito va dos veces seguidas (66 y 73 DDP): repite los grupos 43 + 28. FRAG pide alternancia estricta, así que conviene intercalar otro grupo entre ambas, por ejemplo 21 (cyazofamid) o 45 + 40.', 'Ante un brote, Forum + Infinito junta tres modos de acción (40, 43 y 28), pero FRAG advierte que no conviene "perseguir" la epidemia con aplicaciones erradicantes: lo correcto es proteger antes, guiado por la alerta.', 'Al final se repite Bravo (M5): como multisitio, repetirlo no genera resistencia, pero solo protege. Si la alerta marca riesgo alto en esa etapa, conviene agregar un grupo con acción en el tubérculo.', 'Los insecticidas cambian de grupo en cada aplicación (28, 4A + 3A, 9B, 4A, 9B, 28 y 29): bien rotados. Punto (imidacloprid, 4A) repite el grupo de Engeo dos aplicaciones después, no seguido. Cada 14 días es un intervalo largo para un semillero; el aceite cada 5-7 días cubre el PVY entre medio.'] }
     ],
     fuentes: ['calendarioLP', 'fragTizon', 'irag5']
   };
@@ -2584,6 +2608,156 @@ if (typeof module !== 'undefined') module.exports = G;
     { cat: 'norma', p: '¿Qué maleza es causal de rechazo de un semillero de cereales?', o: ['Ajo silvestre (Allium vineale)', 'Ballica', 'Diente de león', 'Llantén'], r: 0, e: 'Punto 10.10 de la Res. 4852/2022.', f: 'norma-cereales' }
   );
 })();
+
+// =====================================================================
+// CALENDARIO DE APLICACIONES Y CLIMA: código sin pantalla, lo usan la app y el aviso automático (GitHub)
+// =====================================================================
+const CAL = (() => {
+  const TIPOS_AP = { fungicida: 'Fungicidas', insecticida: 'Insecticidas', herbicida: 'Herbicidas', fertilizante: 'Fertilización', foliar: 'Foliares', desecante: 'Desecación' };
+const PROGRAMAS_LOTE = { sur: 'Programa fitosanitario del sur', sur5: 'Fitosanitario + insecticidas cada 5 días', lp: 'Calendario La Pampa' };
+function tipoDe(obj, prod) {
+  const o = (obj + ' ' + prod).toLowerCase();
+  if (/follaje|desec|rebrote|reglone|diquat/.test(o)) return 'desecante';
+  if (/maleza|paraquat|metribuzina|herbadox|glifosato/.test(o)) return 'herbicida';
+  if (/pulg|insect|vector/.test(o)) return 'insecticida';
+  if (/tiz|botri|altern|rizoc|desinfec|fusari|sarna/.test(o)) return 'fungicida';
+  if (/cal \+|yeso|muriato|kieserita|mezcla|potasio foliar|urea|fertiliz/.test(o)) return 'fertilizante';
+  return 'foliar';
+}
+function eventosPrograma(prog) {
+  const ev = [], add = (ddp, prod, obj, dosis, etapa, por, tipo) => ev.push({ ddp, prod, obj, dosis, etapa: etapa || '', por: por || [], tipo: tipo || tipoDe(obj, prod) });
+  if (prog === 'lp') {
+    G.CAL_LP.surco.forEach(([p, d]) => add(0, p, 'Rizoctonia, al surco', d, 'Plantación'));
+    G.CAL_LP.fungi.forEach(([d, p, dos]) => add(d, p, 'Tizón tardío', dos, ''));
+    G.CAL_LP.insect.forEach(([d, p, dos, ag]) => add(d, p, 'Pulgones', `${dos} en ${ag} L de agua/ha`, ''));
+    G.CAL_LP.aceite.forEach(([d, ag, l]) => add(d, 'Aceite mineral', 'Pulgones (barrera contra virus no persistentes)', `${String(l).replace('.', ',')} L/ha en ${ag} L de agua`, '', [], 'insecticida'));
+  } else {
+    G.PROG_FITO.forEach(b => b.filas.forEach(f => { const t = tipoDe(f[1], f[0]); if (prog === 'sur5' && t === 'insecticida') return; add(b.ddp, f[0], f[1], f[2], b.etapa, b.por, t); }));
+    if (prog === 'sur5') G.PROG_INSECT.forEach(([d, e, p, dos]) => add(d, p, 'Pulgones', dos, e, [], 'insecticida'));
+  }
+  G.PROG_MALEZAS.filter(m => !/Desecante/.test(m[2]) || prog === 'lp').forEach(([d, m, p, dos, por]) => add(d, p, 'Malezas', dos, m, [[por, 'programas']], /Desecante/.test(p) ? 'desecante' : 'herbicida'));
+  const mom = { 'Preplantación': -7, 'Plantación': 0, 'Emergencia': 30, 'Aporca': 25, 'Post floración': 85 };
+  G.FERT_PLAN.forEach(([m, p, d, por]) => add(mom[m] ?? 0, p, m === 'Emergencia' || m === 'Post floración' ? 'Nutrición foliar' : 'Fertilización', d, m, por ? [[por, 'programas']] : [], /foliar|Aminoácidos|Bioestimulante/i.test(p) ? 'foliar' : 'fertilizante'));
+  return ev.sort((a, b) => a.ddp - b.ddp);
+}
+function cruzarAplicaciones(l, ev, todas) {
+  const apps = (todas || []).filter(a => a.lote_id === l.id).map(a => Object.assign({}, a, { _usada: false }));
+  const pal = s => String(s || '').toLowerCase().split(/[\s(+,/]+/).filter(w => w.length > 3);
+  ev.forEach(e => {
+    e.fecha = M.sumarDias(l.fecha_plantacion, e.ddp);
+    const cands = apps.filter(a => !a._usada && Math.abs(M.difDias(e.fecha, a.fecha)) <= 5 && (a.clase === e.tipo || pal(a.producto).some(w => pal(e.prod).includes(w)) || (e.tipo === 'fungicida' && /tizon|botritis|alternaria/.test(a.objetivo || '')) || (e.tipo === 'insecticida' && /pulg/.test(a.objetivo || ''))));
+    cands.sort((x, y) => Math.abs(M.difDias(e.fecha, x.fecha)) - Math.abs(M.difDias(e.fecha, y.fecha)));
+    if (cands[0]) { cands[0]._usada = true; e.app = cands[0]; }
+  });
+  return apps.filter(a => !a._usada);
+}
+
+  // Clima (Open-Meteo), igual que la app
+  const VARS = 'temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_gusts_10m,et0_fao_evapotranspiration';
+  const CLAVES = { temperature_2m: 't', relative_humidity_2m: 'rh', precipitation: 'pp', wind_speed_10m: 'ws', wind_gusts_10m: 'wg', et0_fao_evapotranspiration: 'et0' };
+  // Resumen de la semana para un pronóstico horario (h = {time, t, rh, pp, ws, wg})
+  function semana(h, hoy, cfg) {
+    const A = (cfg || M.CONFIG).aplicacion, dias = {};
+    h.time.forEach((t, i) => { const f = t.slice(0, 10); if (f < hoy) return; const d = dias[f] || (dias[f] = { f, pp: 0, vmax: 0, tmax: -99, tmin: 99, ppDia: 0 }); const hr = +t.slice(11, 13); d.pp += h.pp[i] || 0; d.vmax = Math.max(d.vmax, h.ws[i] || 0); d.tmax = Math.max(d.tmax, h.t[i]); d.tmin = Math.min(d.tmin, h.t[i]); if (hr >= 8 && hr <= 18) d.ppDia += h.pp[i] || 0; });
+    const lista = Object.values(dias).sort((a, b) => a.f < b.f ? -1 : 1).slice(0, 7);
+    return { dias: lista, secos: lista.filter(d => d.pp < 0.5), ventosos: lista.filter(d => d.vmax >= A.vientoMax), recorrer: lista.filter(d => d.ppDia < 0.5), total: lista.reduce((t, d) => t + d.pp, 0) };
+  }
+
+  // ---------- Bodega: cruzar el calendario con el stock ----------
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  const pal1 = s => norm(s).split(/[\s(]/)[0];
+  const ACTIVOS = ['fungicida', 'insecticida', 'herbicida', 'desecante'];
+  // ¿Este nombre corresponde a este producto de bodega? (nombre, alternativa o ingrediente igual)
+  // Mismo nombre comercial: igual, o uno es el otro más la formulación ("Herbadox" = "Herbadox 45 CS", "Moxan" = "Moxan MZ"; "Revus" ≠ "Revus Top")
+  const FORMUL = /^[\d\s.,%]*(sc|ec|cs|wg|wp|sl|mz|ew|od|se|ws|fs|sg|ce|pm|gd)?[\s\d]*$/;
+  function mismoNombre(a, b) {
+    const x = norm(a).replace(/\(.*$/, '').trim(), y = norm(b).replace(/\(.*$/, '').trim();
+    if (!x || !y) return false; if (x === y) return true;
+    const [c, l] = x.length < y.length ? [x, y] : [y, x];
+    return l.startsWith(c + ' ') && FORMUL.test(l.slice(c.length).trim());
+  }
+  function esProducto(txt, p) {
+    const t = norm(txt).replace(/\(.*$/, '').trim();
+    if (!t) return false;
+    if ([p.nombre, p.alternativa].filter(Boolean).some(n => mismoNombre(t, n) || mismoNombre(t.replace(/\s+\d.*$/, ''), n))) return true;
+    return !!p.ingrediente && norm(p.ingrediente) === t.replace(/\s+\d.*$/, '');
+  }
+  // Dosis por hectárea de un texto del calendario: {q, U: 'L' | 'kg'} ('500 cc/ha', '150 g/hL en 200 L de agua', '1,5-2 L/ha')
+  function dosisHa(txt, idx) {
+    const t = norm(txt).replace(/(\d),(\d)/g, '$1.$2');
+    const agua = +((t.match(/en (\d+) l de agua/) || [])[1] || 0);
+    const suma = t.match(/(\d+(?:\.\d+)?)\s*\+\s*(\d+(?:\.\d+)?)\s*(l|kg)\s*\/\s*ha/);
+    if (suma) return { q: +suma[(idx || 0) === 0 ? 1 : 2], U: suma[3] === 'kg' ? 'kg' : 'L' };
+    const m = t.match(/(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?\s*(cc|ml|l|kg|g)\s*\/\s*(ha|hl|100 l)/);
+    if (!m) return null;
+    let q = +(m[2] || m[1]); const u = m[3];
+    if (u === 'cc' || u === 'ml' || u === 'g') q /= 1000;
+    const U = u === 'kg' || u === 'g' ? 'kg' : 'L';
+    if (m[4] !== 'ha') { if (!agua) return { q: null, U }; q = q * agua / 100; }
+    return { q, U };
+  }
+  // Productos de un evento: "A + B" son los dos; "A o B" / "A (o B)" es uno u otro (el primero que haya en bodega)
+  function componentes(e, prods) {
+    const bod = (prods || []).filter(p => p.stock != null);
+    return String(e.prod).split(/ \+ /).map((c, i) => {
+      const alts = c.split(/ o |\(|, /).map(x => x.replace(/^o /, '').replace(/\)/g, '').trim()).filter(Boolean);
+      let p = null, alt = alts[0];
+      for (const a of alts) { const q = bod.find(x => esProducto(a, x)); if (q) { p = q; alt = a; break; } }
+      const propia = /\d/.test(alt) ? dosisHa(alt) : null;
+      return { nombre: p ? p.nombre : c.trim().replace(/\s+\d[^)]*\)?$/, ''), p, d: propia || dosisHa(e.dosis, i) };
+    });
+  }
+  const unidadBase = u => /kg|g\//.test(norm(u)) ? 'kg' : 'L';
+  // Producto usado en una aplicación registrada (en L o kg)
+  function cantidadApp(a, lotes) {
+    const l = (lotes || []).find(x => x.id === a.lote_id) || {};
+    const sup = a.superficie_ha != null ? +a.superficie_ha : +l.superficie_ha || 0, u = a.unidad || 'L/ha';
+    if (a.dosis_ha == null || !sup) return null;
+    if (/\/ha/.test(u)) return a.dosis_ha * sup;
+    if (a.volumen_ha) return a.dosis_ha * a.volumen_ha * sup / 100 / 1000;
+    return null;
+  }
+  function usado(p, apps, lotes) {
+    let q = 0, n = 0, sinDato = 0;
+    (apps || []).forEach(a => { if (p.stock_fecha && String(a.fecha).slice(0, 10) < p.stock_fecha) return; if (!esProducto(a.producto, p)) return; const c = cantidadApp(a, lotes); n++; if (c == null) sinDato++; else q += c; });
+    return { q, n, sinDato };
+  }
+  // Balance de bodega contra lo que falta del calendario en los lotes de papa (de hoy hasta 'hasta', o toda la temporada)
+  function balance(lotes, apps, prods, hoy, hasta) {
+    const filas = {}, sinSup = [], papa = (lotes || []).filter(l => l.activo !== false && l.cultivo === 'papa' && l.fecha_plantacion);
+    let ha = 0;
+    papa.forEach(l => {
+      const ev = eventosPrograma((l.norma || {}).prog || 'lp'); cruzarAplicaciones(l, ev, apps);
+      const sup = +l.superficie_ha || 0; if (!sup) sinSup.push(l); ha += sup;
+      const ya = {};   // mismo producto en el mismo lote con 2 días o menos de diferencia = alternativas del programa, se cuenta una vez
+      ev.forEach(e => {
+        if (e.app || e.fecha < hoy || (hasta && e.fecha > hasta)) return;
+        componentes(e, prods).forEach(c => {
+          if (!c.p && !ACTIVOS.includes(e.tipo)) return;
+          const k = c.p ? 'p:' + c.p.id : 'x:' + norm(c.nombre);
+          const q = c.d && c.d.q != null ? c.d.q * sup : null, prev = (ya[k] || []).find(x => Math.abs(M.difDias(x.f, e.fecha)) <= 2);
+          if (prev) { if (q != null && q > prev.q && filas[k]) { filas[k].necesita += q - prev.q; prev.q = q; } return; }
+          (ya[k] = ya[k] || []).push({ f: e.fecha, q: q || 0 });
+          const f = filas[k] || (filas[k] = { p: c.p, nombre: c.nombre, tipo: e.tipo, U: c.p ? unidadBase(c.p.stock_unidad || c.p.unidad) : (c.d ? c.d.U : 'L'), necesita: 0, sinDosis: 0, n: 0, lotes: new Set(), desde: null, unidadCal: null });
+          f.n++; f.lotes.add(l.id); if (!f.desde || e.fecha < f.desde) f.desde = e.fecha;
+          if (c.d && c.d.q != null) { f.necesita += c.d.q * sup; if (c.d.U !== f.U) f.unidadCal = c.d.U; } else f.sinDosis++;
+        });
+      });
+    });
+    (prods || []).filter(p => p.stock != null).forEach(p => { if (!filas['p:' + p.id]) filas['p:' + p.id] = { p, nombre: p.nombre, tipo: p.clase, U: unidadBase(p.stock_unidad || p.unidad), necesita: 0, sinDosis: 0, n: 0, lotes: new Set(), desde: null, fuera: true }; });
+    const lista = Object.values(filas).map(f => {
+      if (f.p) { const u = usado(f.p, apps, lotes); f.stock = +f.p.stock; f.usado = u.q; f.usos = u.n; f.usosSinDato = u.sinDato; f.queda = f.stock - u.q; } else { f.stock = 0; f.usado = 0; f.queda = 0; }
+      f.falta = Math.max(0, f.necesita - f.queda); f.nLotes = f.lotes.size; delete f.lotes;
+      f.estado = !f.p ? 'sin' : f.fuera ? 'fuera' : f.falta > 0.0001 ? 'falta' : 'alcanza';
+      return f;
+    });
+    const orden = { sin: 0, falta: 1, alcanza: 2, fuera: 3 };
+    lista.sort((a, b) => orden[a.estado] - orden[b.estado] || (a.desde || '9') .localeCompare(b.desde || '9') || a.nombre.localeCompare(b.nombre));
+    return { filas: lista, sinSup, nPapa: papa.length, ha };
+  }
+  return { TIPOS_AP, PROGRAMAS_LOTE, tipoDe, eventos: eventosPrograma, cruzar: cruzarAplicaciones, VARS, CLAVES, semana, norm, mismoNombre, esProducto, dosisHa, componentes, cantidadApp, usado, balance, unidadBase };
+})();
+if (typeof module !== 'undefined') module.exports = CAL;
 
 </script>
 <script>
@@ -2897,7 +3071,7 @@ function vInicio() {
   const lotes = DB.lotes.filter(l => l.activo !== false && loteCompleto(l)).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const pend = DB.lotes.filter(l => l.activo !== false && !loteCompleto(l));
   const inact = DB.lotes.filter(l => l.activo === false);
-  let h = `<div class="row" style="margin-bottom:8px"><button class="btn grow" id="nuevo">+ Nuevo lote</button><button class="btn sec" id="imp">Importar Excel</button><button class="btn sec" id="refr">Actualizar</button></div>`;
+  let h = `<button class="btn sec blk" id="hoyB" style="margin-bottom:8px">📋 Hoy: qué aplicar, inspecciones y semana</button><div class="row" style="margin-bottom:8px"><button class="btn grow" id="nuevo">+ Nuevo lote</button><button class="btn sec" id="imp">Importar Excel</button><button class="btn sec" id="refr">Actualizar</button></div>`;
   if (lotes.length) h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="resu">Resumen en tabla</button><button class="btn sec grow" id="mapaL">Mapa de lotes</button></div>`;
   if (!lotes.length) h += `<div class="card vacio">Aún no tienes lotes.<br>Crea uno con su punto GPS y fecha de plantación o siembra.</div>`;
   lotes.forEach(l => {
@@ -2909,6 +3083,7 @@ function vInicio() {
   V().innerHTML = h;
   $('#nuevo').onclick = () => ir(() => vLoteForm(null), 'Nuevo lote', true);
   $('#imp').onclick = () => ir(vImportar, 'Importar planilla', true);
+  $('#hoyB').onclick = () => ir(vHoy, 'Hoy', true);
   V().querySelectorAll('[data-pend]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } ir(() => vLoteForm(e.dataset.pend), 'Completar lote', true); }; mantener(e, () => menuLote(e.dataset.pend)); });
   if ($('#resu')) $('#resu').onclick = () => ir(vResumen, 'Resumen de lotes', true);
   if ($('#mapaL')) $('#mapaL').onclick = () => ir(vMapa, 'Mapa de lotes', true);
@@ -3385,7 +3560,7 @@ function vAppForm(id, loteId, ven, pre) {
   V().innerHTML = `<div class="card">
     <label>Lote</label><select id="a_lote">${DB.lotes.map(l => `<option value="${l.id}" ${l.id === a.lote_id ? 'selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select>
     <div class="grid2"><div><label>Fecha</label><input type="date" id="a_f" value="${esc(a.fecha)}"></div><div><label>Hora</label><input type="time" id="a_h" value="${esc(a.hora || '')}"></div></div>
-    ${prods.length ? `<label>Desde mis productos</label><select id="a_sel"><option value="">— elegir —</option>${prods.map(p => `<option value="${p.id}" ${p.nombre === a.producto ? 'selected' : ''}>${esc(p.nombre)}${p.grupo ? ' · ' + esc(p.grupo) : ''}</option>`).join('')}</select>` : '<div class="tiny" style="margin-top:8px">Tip: guarda tus productos en Más → Mis productos para llenar esto solo.</div>'}
+    ${prods.length ? `<label>Desde mis productos</label><select id="a_sel"><option value="">— elegir —</option>${prods.map(p => `<option value="${p.id}" ${p.nombre === a.producto ? 'selected' : ''}>${esc(p.nombre)}${p.grupo ? ' · ' + esc(p.grupo) : ''}${p.stock != null ? ` · bodega ${n1(quedaBodega(p))} ${CAL.unidadBase(p.stock_unidad || p.unidad)}` : ''}</option>`).join('')}</select>` : '<div class="tiny" style="margin-top:8px">Tip: guarda tus productos en Más → Mis productos para llenar esto solo.</div>'}
     <label>Producto comercial</label><input id="a_p" value="${esc(a.producto || '')}">
     <div class="grid2"><div><label>Ingrediente activo</label><input id="a_i" list="dl_ia" value="${esc(a.ingrediente || '')}"></div><div><label>Grupo (FRAC/IRAC/HRAC)</label><input id="a_gr" value="${esc(a.grupo || '')}" placeholder="Ej: M3, 40, 3A"></div></div>
     <datalist id="dl_ia">${G.INGREDIENTES.map(x => `<option value="${esc(x.ia)}">${esc(x.g)} · ${x.clase}</option>`).join('')}</datalist>
@@ -3421,6 +3596,13 @@ function vAppForm(id, loteId, ven, pre) {
       else if (vol) tot = `Producto total: <b>${n1(d * vol * sup / 100 / 1000)} ${u.startsWith('cc') ? 'L' : 'kg'}</b>`;
       if (vol) tot += ` · Agua total: ${n0(vol * sup)} L`;
     }
+    const sp = DB.prods.find(p => p.stock != null && CAL.esProducto($('#a_p').value, p));
+    if (sp) {
+      const U = CAL.unidadBase(sp.stock_unidad || sp.unidad), otras = DB.apps.filter(x => x.id !== a.id);
+      const queda = +sp.stock - CAL.usado(sp, otras, DB.lotes).q, esta = CAL.cantidadApp({ lote_id: $('#a_lote').value, dosis_ha: d, unidad: u, volumen_ha: vol, superficie_ha: sup }, DB.lotes);
+      tot += `${tot ? '<br>' : ''}Bodega (${esc(sp.nombre)}): quedan <b>${n1(queda)} ${U}</b>${esta != null ? `; después de esta aplicación quedarían ${n1(queda - esta)} ${U}` : ''}.`;
+      if (esta != null && esta > queda + 0.0001) tot += `<div class="error">No alcanza lo que hay en bodega: faltan ${n1(esta - queda)} ${U}.</div>`;
+    }
     $('#a_tot').innerHTML = tot;
   };
   const sel = $('#a_sel');
@@ -3444,13 +3626,105 @@ function vAppForm(id, loteId, ven, pre) {
   if (id) $('#a_b').onclick = () => { if (confirm('¿Eliminar esta aplicación?')) { borrarRegistro('apps', id); toast('Eliminada'); $('#btnAtras').click(); } };
 }
 
+// ---------- Bodega (stock) contra el calendario ----------
+function quedaBodega(p) { return +p.stock - CAL.usado(p, DB.apps, DB.lotes).q; }
+const BODEGA_EST = { sin: 'No hay en bodega', falta: 'No alcanza', alcanza: 'Alcanza', fuera: 'No se usa en lo que queda' };
+function htmlStockEv(e) {
+  if (!DB.prods.some(p => p.stock != null)) return '';
+  const cs = CAL.componentes(e, DB.prods);
+  if (!['fungicida', 'insecticida', 'herbicida', 'desecante'].includes(e.tipo) && !cs.some(c => c.p)) return '';
+  return `<br><span class="tiny">${cs.map(c => c.p ? `Bodega: ${esc(c.p.nombre)}, quedan ${n1(quedaBodega(c.p))} ${esc(CAL.unidadBase(c.p.stock_unidad || c.p.unidad))}` : `<b>No está en bodega: ${esc(c.nombre)}</b>`).join(' · ')}</span>`;
+}
+function htmlBodega() {
+  const hay = DB.prods.filter(p => p.stock != null), S = G.STOCK_LP;
+  let h = `<div class="card" id="bodCard"><h2>Bodega y calendario La Pampa</h2>
+    <div class="row noRes" style="flex-wrap:wrap;gap:6px;margin:6px 0"><button class="btn sec" id="bod_lp">Cargar el stock que llegó (${fFechaL(S.fecha)}, ${S.items.length} productos)</button><button class="btn sec" id="bod_x">Importar planilla de stock (Excel)</button><input type="file" id="bod_f" accept=".xlsx,.csv" style="display:none"></div>
+    <div class="tiny noRes">La planilla necesita las columnas Producto y Cantidad (y si las tiene: Unidad, Ingrediente activo, Categoría, Empresa, Alternativa), como QUIMICOS_PAPA. Si el producto ya existe, se actualiza su cantidad.</div><div id="bod_msg"></div>`;
+  if (!hay.length) return h + '<div class="vacio">Todavía no hay productos con stock. Carga el que llegó y la app te dice si alcanza para lo que falta del calendario.</div></div>';
+  const B = CAL.balance(DB.lotes, DB.apps, DB.prods, hoyStr()), q = (x, U) => `${n1(x)} ${U}`;
+  const usados = B.filas.filter(f => f.estado !== 'fuera'), fuera = B.filas.filter(f => f.estado === 'fuera');
+  const nFalta = B.filas.filter(f => f.estado === 'sin' || f.estado === 'falta').length;
+  h += `<div class="grid3" style="margin-top:8px"><div class="kpi"><b>${hay.length}</b><span>productos en bodega</span></div><div class="kpi"><b>${B.nPapa}</b><span>lotes de papa (${n1(B.ha)} ha)</span></div><div class="kpi"><b style="${nFalta ? 'color:var(--bad)' : ''}">${nFalta}</b><span>faltan o no alcanzan</span></div></div>
+    <h3>Lo que falta aplicar del calendario, desde hoy hasta el final</h3>
+    <table class="tabla izq"><tr><th>Producto</th><th>En bodega</th><th>Usado</th><th>Queda</th><th>Necesita</th><th>Estado</th></tr>
+    ${usados.map(f => `<tr><td class="small"><b>${esc(f.nombre)}</b>${f.unidadCal ? ' *' : ''}<br><span class="tiny">${f.n} aplic. en ${f.nLotes} lote${f.nLotes === 1 ? '' : 's'} · desde ${fFecha(f.desde)}</span></td><td class="small">${f.p ? q(f.stock, f.U) : '—'}</td><td class="small">${f.p ? q(f.usado, f.U) : '—'}</td><td class="small">${f.p ? q(f.queda, f.U) : '—'}</td><td class="small">${q(f.necesita, f.U)}${f.sinDosis ? ` <span class="tiny">(+${f.sinDosis} sin dosis)</span>` : ''}</td><td class="small"><b>${f.estado === 'falta' ? `Faltan ${q(f.falta, f.U)}` : BODEGA_EST[f.estado]}</b></td></tr>`).join('')}</table>
+    ${usados.some(f => f.unidadCal) ? `<div class="tiny" style="margin-top:4px">* El calendario indica la dosis en ${usados.filter(f => f.unidadCal).map(f => `${esc(f.nombre)}: ${f.unidadCal}/ha, y en bodega está en ${f.U}`).join('; ')}. Se calculó igual (1 a 1); revisa la dosis de la etiqueta y corrígela en el producto.</div>` : ''}
+    ${fuera.length ? `<div class="small" style="margin-top:8px"><b>En bodega, pero no aparecen en lo que queda del calendario:</b> ${fuera.map(f => `${esc(f.nombre)} (${q(f.queda, f.U)})`).join(', ')}.</div>` : ''}
+    ${B.sinSup.length ? `<div class="aviso">${B.sinSup.length} lote${B.sinSup.length > 1 ? 's' : ''} de papa sin superficie: no entran en la cuenta (${B.sinSup.slice(0, 4).map(l => esc(l.nombre)).join(', ')}${B.sinSup.length > 4 ? '…' : ''}).</div>` : ''}
+    ${usados.some(f => f.usosSinDato) ? '<div class="tiny">Hay aplicaciones registradas sin dosis o sin superficie: no se pudieron descontar de la bodega.</div>' : ''}
+    ${porque('', fundLista([['Lo necesario se calcula con las aplicaciones del calendario de cada lote (por defecto, calendario La Pampa) que todavía no están registradas, desde hoy hasta el final: dosis del calendario por hectárea × superficie del lote. Las atrasadas no se cuentan: si se van a hacer igual, regístralas o súmalas.', 'calendarioLP'], ['Lo usado se descuenta con las aplicaciones registradas desde la fecha de llegada, con la dosis y la superficie de cada registro.', 'bodegaLP'], ['Cuando el calendario da alternativas (Bravo o mancozeb), se cuenta la primera que hay en bodega. Si el mismo producto aparece dos veces con 2 días o menos de diferencia en un lote (metribuzina a los 30 y 31 DDP), se cuenta una sola vez porque son alternativas.', 'calendarioLP'], ['Las dosis deben salir de la etiqueta vigente autorizada por el SAG; las del calendario son su recomendación.', 'calendarioLP']]))}`;
+  return h + '</div>';
+}
+function htmlBodegaHoy() {
+  if (!DB.prods.some(p => p.stock != null)) return `<div class="card"><h2>Bodega</h2><div class="tiny">Carga el stock en Más → Mis productos y aquí verás si falta algo para las próximas 2 semanas.</div></div>`;
+  const hoy = hoyStr(), B = CAL.balance(DB.lotes, DB.apps, DB.prods, hoy, M.sumarDias(hoy, 14));
+  const f = B.filas.filter(x => (x.estado === 'sin' || x.estado === 'falta') && x.n);
+  return `<div class="card"><h2>Bodega para las próximas 2 semanas</h2>${f.length ? f.map(x => `<div class="small" style="margin-top:4px"><b>${esc(x.nombre)}</b>: ${x.estado === 'sin' ? 'no hay en bodega' : `quedan ${n1(x.queda)} ${x.U}`}; se necesitan ${n1(x.necesita)} ${x.U} desde el ${fFecha(x.desde)} (${x.n} aplic.).</div>`).join('') : '<div class="okmsg">Lo que hay en bodega alcanza para lo que viene en 2 semanas.</div>'}</div>`;
+}
+function dosisCalendario(p) {
+  const tmp = Object.assign({}, p, { stock: p.stock ?? 0 });
+  for (const e of CAL.eventos('lp')) { const c = CAL.componentes(e, [tmp]).find(x => x.p === tmp); if (c && c.d && c.d.q != null) return [Math.round(c.d.q * 1000) / 1000, c.d.U]; }
+  const k = G.claveDe(p.nombre); return k && G.PROG_DOSIS[k] ? [G.PROG_DOSIS[k][0], G.PROG_DOSIS[k][1].split('/')[0]] : null;
+}
+function aplicarStock(items, fecha) {
+  let nuevos = 0, act = 0;
+  items.forEach(it => {
+    const ex = DB.prods.find(p => CAL.mismoNombre(p.nombre, it.nombre));
+    const o = ex ? clon(ex) : { id: uid(), created_at: new Date().toISOString(), nombre: it.nombre, ingrediente: '', grupo: '', clase: it.clase || 'otro', movilidad: it.movilidad || 'contacto', dosis_ha: null, unidad: it.unidad + '/ha', carencia_dias: null, reingreso_h: null, objetivo: '', notas: 'Bodega INIA La Pampa. Verificar dosis, carencia y reingreso en la etiqueta SAG.' };
+    Object.assign(o, { stock: it.cantidad, stock_unidad: it.unidad, stock_fecha: fecha, empresa: it.empresa || o.empresa || '', alternativa: it.alternativa || o.alternativa || '' });
+    if (!o.ingrediente) o.ingrediente = it.ingrediente || '';
+    if (!o.grupo && it.grupo) o.grupo = it.grupo;
+    if (o.dosis_ha == null) { const d = dosisCalendario(o); if (d) { o.dosis_ha = d[0]; o.unidad = (d[1] === it.unidad ? d[1] : it.unidad) + '/ha'; } }
+    delete o._pend; guardarRegistro('prods', o); ex ? act++ : nuevos++;
+  });
+  return { nuevos, act };
+}
+function grupoPorIngrediente(ia) {
+  const gs = String(ia || '').split('+').map(x => { const n = CAL.norm(x); const r = G.INGREDIENTES.find(g => { const gi = CAL.norm(g.ia); return gi === n || gi.startsWith(n.slice(0, 7)) && n.length > 6; }); return r ? r.g : null; });
+  return gs.every(Boolean) ? gs.join(' + ') : '';
+}
+async function importarStock(file) {
+  const filas = await XL.leer(file);
+  const hi = filas.findIndex(r => r.some(c => CAL.norm(c) === 'producto'));
+  if (hi < 0) throw new Error('No encontré la columna "Producto".');
+  const cab = filas[hi].map(c => CAL.norm(c)), col = re => cab.findIndex(c => re.test(c));
+  const cP = col(/^producto$/), cI = col(/ingrediente/), cE = col(/^empresa$/), cA = col(/^alternativa$/), cC = col(/cantidad|stock|existencia/), cU = col(/^unidad/), cK = col(/categor|clase/);
+  if (cC < 0) throw new Error('No encontré la columna "Cantidad".');
+  const ref = n => G.STOCK_LP.items.find(x => CAL.mismoNombre(x[1], n));
+  const items = filas.slice(hi + 1).filter(r => String(r[cP] || '').trim() && String(r[cC] || '').trim() !== '' && !isNaN(+String(r[cC]).replace(',', '.'))).map(r => {
+    const nombre = String(r[cP]).trim(), cat = CAL.norm(cK >= 0 ? r[cK] : ''), R = ref(nombre), ia = cI >= 0 ? String(r[cI] || '').trim() : (R ? R[2] : '');
+    const clase = /insect/.test(cat) ? 'insecticida' : /fungi/.test(cat) ? 'fungicida' : /herbi/.test(cat) ? 'herbicida' : /fosfito/i.test(nombre) ? 'fungicida' : R ? R[0] : 'otro';
+    return { nombre, ingrediente: ia, empresa: cE >= 0 ? String(r[cE] || '').trim() : '', alternativa: cA >= 0 ? String(r[cA] || '').trim() : '', cantidad: +String(r[cC]).replace(',', '.'), unidad: /kg|^g/.test(CAL.norm(cU >= 0 ? r[cU] : 'L')) ? 'kg' : 'L', clase, grupo: R ? R[8] : grupoPorIngrediente(ia), movilidad: R ? R[9] : 'contacto' };
+  });
+  if (!items.length) throw new Error('No encontré filas con producto y cantidad.');
+  return items;
+}
+function enlazarBodega() {
+  if (!$('#bodCard')) return;
+  $('#bod_lp').onclick = () => {
+    const S = G.STOCK_LP, r = aplicarStock(S.items.map(([clase, nombre, ingrediente, empresa, alternativa, , cantidad, unidad, grupo, movilidad]) => ({ clase, nombre, ingrediente, empresa, alternativa, cantidad, unidad, grupo, movilidad })), S.fecha);
+    toast(`Bodega: ${r.nuevos} nuevos, ${r.act} actualizados`); vProductos();
+  };
+  $('#bod_x').onclick = () => $('#bod_f').click();
+  $('#bod_f').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const items = await importarStock(f);
+      const fecha = prompt(`Encontré ${items.length} productos. ¿Fecha de llegada? (AAAA-MM-DD)`, hoyStr()); if (!fecha) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return toast('Fecha no válida');
+      const r = aplicarStock(items, fecha); toast(`Bodega: ${r.nuevos} nuevos, ${r.act} actualizados`); vProductos();
+    } catch (er) { $('#bod_msg').innerHTML = `<div class="error">${esc(er.message)}</div>`; }
+  };
+}
+
 // ---------- Mis productos ----------
 function vProductos() {
   const prods = DB.prods.slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
-  V().innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn grow" id="np">+ Nuevo producto</button><button class="btn sec" id="ej">Ejemplos INIA</button></div>
+  V().innerHTML = htmlBodega() + `<div class="row" style="margin-bottom:12px"><button class="btn grow" id="np">+ Nuevo producto</button><button class="btn sec" id="ej">Ejemplos INIA</button></div>
     <button class="btn sec blk" id="pr" style="margin-bottom:12px">Cargar productos de los programas del sur</button>
-    ${prods.length ? `<div class="card">${prods.map(p => `<div class="vent" data-p="${p.id}" style="cursor:pointer"><span><b>${esc(p.nombre)}</b>${p.grupo ? ` <span class="tag">${esc(p.grupo)}</span>` : ''}<br><span class="tiny">${esc(p.ingrediente || '')} · ${CLASES[p.clase] || ''} · ${TIPOS[p.movilidad] || ''}</span></span><span class="tiny">${p.dosis_ha != null ? n1(p.dosis_ha) + ' ' + esc(p.unidad || '') : ''}${p.carencia_dias != null ? '<br>carencia ' + p.carencia_dias + ' d' : ''}</span></div>`).join('')}</div>` : '<div class="card vacio">Guarda aquí los productos que usas, con su grupo, dosis de etiqueta y carencia. Al registrar una aplicación se llenan solos y la app avisa si repites el grupo.</div>'}
+    ${prods.length ? `<div class="card">${prods.map(p => `<div class="vent" data-p="${p.id}" style="cursor:pointer"><span><b>${esc(p.nombre)}</b>${p.grupo ? ` <span class="tag">${esc(p.grupo)}</span>` : ''}<br><span class="tiny">${esc(p.ingrediente || '')} · ${CLASES[p.clase] || ''} · ${TIPOS[p.movilidad] || ''}</span></span><span class="tiny">${p.dosis_ha != null ? n1(p.dosis_ha) + ' ' + esc(p.unidad || '') : ''}${p.carencia_dias != null ? '<br>carencia ' + p.carencia_dias + ' d' : ''}${p.stock != null ? `<br>bodega: <b>${n1(quedaBodega(p))} ${esc(CAL.unidadBase(p.stock_unidad || p.unidad))}</b>` : ''}</span></div>`).join('')}</div>` : '<div class="card vacio">Guarda aquí los productos que usas, con su grupo, dosis de etiqueta y carencia. Al registrar una aplicación se llenan solos y la app avisa si repites el grupo.</div>'}
     <div class="tiny">Las dosis siempre deben venir de la etiqueta vigente autorizada por el SAG.</div>`;
+  enlazarBodega();
   $('#np').onclick = () => ir(() => vProductoForm(null), 'Nuevo producto', true);
   $('#ej').onclick = () => {
     let n = 0; G.PRODUCTOS_EJEMPLO.forEach(p => { if (!DB.prods.some(x => x.nombre === p.nombre)) { guardarRegistro('prods', Object.assign({ id: uid(), created_at: new Date().toISOString() }, p)); n++; } });
@@ -3476,6 +3750,10 @@ function vProductoForm(id) {
     <div class="grid3"><div><label>Grupo</label><input id="p_g" value="${esc(p.grupo || '')}"></div><div><label>Clase</label><select id="p_c">${Object.entries(CLASES).map(([k, v]) => `<option value="${k}" ${p.clase === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div><div><label>Movilidad</label><select id="p_m">${Object.entries(TIPOS).map(([k, v]) => `<option value="${k}" ${p.movilidad === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
     <div class="grid2"><div><label>Dosis de etiqueta</label><input type="number" step="0.01" id="p_d" value="${esc(p.dosis_ha ?? '')}"></div><div><label>Unidad</label><select id="p_u">${['L/ha', 'kg/ha', 'cc/100 L', 'g/100 L'].map(u => `<option ${p.unidad === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div>
     <div class="grid2"><div><label>Carencia (días)</label><input type="number" id="p_car" value="${esc(p.carencia_dias ?? '')}"></div><div><label>Reingreso (horas)</label><input type="number" id="p_re" value="${esc(p.reingreso_h ?? '')}"></div></div>
+    <div class="grid2"><div><label>Empresa</label><input id="p_em" value="${esc(p.empresa || '')}"></div><div><label>Alternativa (mismo uso)</label><input id="p_al" value="${esc(p.alternativa || '')}"></div></div>
+    <div class="sub">Bodega</div>
+    <div class="grid3"><div><label>Cantidad que llegó</label><input type="number" step="0.01" id="p_st" value="${esc(p.stock ?? '')}"></div><div><label>Unidad</label><select id="p_su">${['L', 'kg'].map(u => `<option ${CAL.unidadBase(p.stock_unidad || p.unidad || 'L') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div><div><label>Fecha de llegada</label><input type="date" id="p_sf" value="${esc(p.stock_fecha || hoyStr())}"></div></div>
+    <div class="tiny">Lo usado se descuenta solo con las aplicaciones que registres desde esa fecha (dosis × superficie). Deja la cantidad vacía si no lo tienes en bodega.</div>
     <label>Para qué (plagas o enfermedades de la etiqueta)</label><input id="p_o" value="${esc(p.objetivo || '')}">
     <label>Notas</label><textarea id="p_no">${esc(p.notas || '')}</textarea>
     <div id="p_info"></div>
@@ -3487,6 +3765,8 @@ function vProductoForm(id) {
   $('#p_s').onclick = () => {
     const o = Object.assign(p, { nombre: $('#p_n').value.trim(), ingrediente: $('#p_i').value.trim(), grupo: $('#p_g').value.trim(), clase: $('#p_c').value, movilidad: $('#p_m').value, dosis_ha: numOrNull($('#p_d').value), unidad: $('#p_u').value, carencia_dias: numOrNull($('#p_car').value), reingreso_h: numOrNull($('#p_re').value), objetivo: $('#p_o').value.trim(), notas: $('#p_no').value.trim() });
     if (!o.nombre) return toast('Falta el nombre');
+    Object.assign(o, { empresa: $('#p_em').value.trim(), alternativa: $('#p_al').value.trim(), stock: numOrNull($('#p_st').value), stock_unidad: $('#p_su').value, stock_fecha: $('#p_sf').value || null });
+    if (o.stock == null) { o.stock_fecha = null; }
     if (!o.created_at) o.created_at = new Date().toISOString();
     guardarRegistro('prods', o); toast('Producto guardado'); $('#btnAtras').click();
   };
@@ -3758,7 +4038,7 @@ const CALC_FN = {
 // ---------- Más ----------
 function vMas() {
   const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
-  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 9</div>`;
+  V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 12</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
 function vFuentes() {
@@ -3845,6 +4125,7 @@ XL.CAMPOS = [
   ['lat', /^lat/], ['lon', /^lon|^lng/],
   ['este', /\beste\b|utm e|^x$|coord x|^e$/], ['norte', /\bnorte\b|utm n|^y$|coord y|^n$/], ['huso', /huso|^zona|^uso$/],
   ['hileras', /hilera/],
+  ['estado', /^estado/], ['precedentes', /precedente|cultivo anterior/], ['loteSem', /lote.{0,4}semilla|semilla.{0,6}lote|lote hembra|lote de origen/], ['kgSem', /kg.{0,6}(semilla|sembrad)/],
   ['agricultor', /agricultor|productor|cliente|semillero|multiplicador/],
   ['nombre', /potrero|^lote$|nombre|predio|sector|campo/]
 ];
@@ -3891,13 +4172,13 @@ function previsualizar(filas, ultimo) {
   const mp = XL.mapear(filas);
   if (mp.i < 0 || !('fecha' in mp.m)) { $('#x_prev').innerHTML = `<div class="error">No encontré la columna de fecha de plantación. Revisa que la planilla tenga una fila de títulos (por ejemplo: N° control, Categoría, Cultivo, Fecha plantación).</div>`; return; }
   const M_ = mp.m, cel = (f, k) => k in M_ ? (f[M_[k]] ?? '') : '';
-  const NOMBRES = { control: 'N° control', categoria: 'Categoría', cultivo: 'Cultivo', variedad: 'Variedad', fecha: 'Fecha plantación', emergencia: 'Emergencia', superficie: 'Superficie', lat: 'Latitud', lon: 'Longitud', hileras: 'Entre hileras', agricultor: 'Agricultor', nombre: 'Potrero / nombre' };
+  const NOMBRES = { estado: 'Estado SAG', precedentes: 'Cultivos precedentes', loteSem: 'Lote de semilla', kgSem: 'Kg de semilla', control: 'N° control', categoria: 'Categoría', cultivo: 'Cultivo', variedad: 'Variedad', fecha: 'Fecha plantación', emergencia: 'Emergencia', superficie: 'Superficie', lat: 'Latitud', lon: 'Longitud', hileras: 'Entre hileras', agricultor: 'Agricultor', nombre: 'Potrero / nombre' };
   const st = { def: 'papa', lat: ultimo ? ultimo.lat : '', lon: ultimo ? ultimo.lon : '', fix: {}, incompletas: false };
   const armar = () => filas.slice(mp.i + 1).filter(f => f && f.some(x => String(x).trim())).map((f, k) => {
     const r = { fila: mp.i + 2 + k, control: String(cel(f, 'control')).trim(), categoria: String(cel(f, 'categoria')).trim(), variedad: String(cel(f, 'variedad')).trim(),
       cultivo: XL.cultivo(cel(f, 'cultivo'), st.def), cultivoTxt: String(cel(f, 'cultivo')).trim(), fecha: XL.fecha(cel(f, 'fecha')), emergencia: XL.fecha(cel(f, 'emergencia')),
       superficie: XL.num(cel(f, 'superficie')), lat: XL.num(cel(f, 'lat')), lon: XL.num(cel(f, 'lon')), este: XL.num(cel(f, 'este')), norte: XL.num(cel(f, 'norte')), huso: XL.num(cel(f, 'huso')) || 18, hileras: XL.num(cel(f, 'hileras')),
-      agricultor: String(cel(f, 'agricultor')).trim(), nombre: String(cel(f, 'nombre')).trim(), errs: [] };
+      agricultor: String(cel(f, 'agricultor')).trim(), nombre: String(cel(f, 'nombre')).trim(), prec: String(cel(f, 'precedentes')).trim(), estado: String(cel(f, 'estado')).trim(), loteSem: String(cel(f, 'loteSem')).trim(), kgSem: XL.num(cel(f, 'kgSem')), errs: [] };
     const fx = st.fix[r.fila] || {}; if (fx.cultivo) r.cultivo = fx.cultivo; if (fx.fecha) r.fecha = fx.fecha;
     if (!r.cultivo) r.errs.push(`cultivo "${r.cultivoTxt || 'vacío'}" no reconocido`);
     if (!r.fecha) r.errs.push('falta fecha de plantación'); else if (r.fecha > hoyStr()) { r.errs.push('fecha futura'); r.fecha = null; }
@@ -3906,7 +4187,7 @@ function previsualizar(filas, ultimo) {
     if (r.lat != null && (Math.abs(r.lat) > 90 || r.lon == null || Math.abs(r.lon) > 180)) { r.lat = r.lon = null; }
     r.ubic = r.lat != null ? 'GPS' : '';
     if (r.lat == null && r.este > 100000 && r.este < 900000 && r.norte > 1000000 && r.norte < 10000000) { const p = M.deUTM(r.este, r.norte, r.huso, true); r.lat = p.lat; r.lon = p.lon; r.ubic = `UTM ${r.huso}`; }
-    r.existe = r.control ? DB.lotes.find(l => l.numero_control && String(l.numero_control) === r.control && l.cultivo === r.cultivo) : null;
+    { const cands = r.control ? DB.lotes.filter(l => l.numero_control && String(l.numero_control) === r.control && (!r.cultivo || !l.cultivo || l.cultivo === r.cultivo)) : []; r.existe = cands.length === 1 ? cands[0] : cands.find(l => r.nombre && l.nombre === r.nombre) || null; }
     return r;
   });
   const pintar = () => {
@@ -3950,7 +4231,9 @@ function previsualizar(filas, ultimo) {
       aImportar.forEach(r => {
         const base = r.existe ? clon(r.existe) : { id: uid(), susceptibilidad: 'susceptible', activo: true, created_at: ahora };
         const nombre = r.nombre || [r.control ? `N° ${r.control}` : '', r.variedad, r.categoria].filter(Boolean).join(' · ') || `Fila ${r.fila}`;
-        const notas = [base.notas && !/^(Agricultor|Cultivo en planilla):/.test(base.notas) ? base.notas : '', r.agricultor ? `Agricultor: ${r.agricultor}` : '', !r.cultivo && r.cultivoTxt ? `Cultivo en planilla: ${r.cultivoTxt}` : ''].filter(Boolean).join(' · ');
+        const notas = [base.notas && !/^(Agricultor|Cultivo en planilla|Semilla):/.test(base.notas) ? base.notas : '', r.agricultor ? `Agricultor: ${r.agricultor}` : '', r.loteSem || r.kgSem ? `Semilla: ${r.loteSem ? 'lote ' + r.loteSem : ''}${r.kgSem ? ` (${n0(r.kgSem)} kg)` : ''}` : '', !r.cultivo && r.cultivoTxt ? `Cultivo en planilla: ${r.cultivoTxt}` : ''].filter(Boolean).join(' · ');
+        if (r.prec) base.norma = Object.assign({ chk: {} }, base.norma || {}, { precedentes: r.prec.split(/\s*,\s*/).map(x => x.trim()).filter(Boolean) });
+        if (/inscrit|aprob|acept/i.test(r.estado || '')) { base.norma = Object.assign({ chk: {} }, base.norma || {}); base.norma.chk = Object.assign({}, base.norma.chk, { inscrito: true }); }
         Object.assign(base, { nombre: r.existe && !r.nombre ? base.nombre : nombre, cultivo: r.cultivo || null, variedad: r.variedad || base.variedad || '', numero_control: r.control || base.numero_control || null,
           categoria: r.categoria || base.categoria || null, fecha_plantacion: r.fecha || null, fecha_emergencia: r.emergencia || base.fecha_emergencia || null,
           superficie_ha: r.superficie ?? base.superficie_ha ?? null, distancia_hileras_m: r.hileras ?? base.distancia_hileras_m ?? null,
@@ -4260,7 +4543,7 @@ Responde SOLO un JSON con: {"etapa_idx": número del estado que mejor calza con 
 // =====================================================================
 // CUMPLIMIENTO DE LA NORMA SAG EN CADA LOTE
 // =====================================================================
-Object.assign(FTE, { normaPapa: 'Norma SAG papa 2017', normaCer: 'Res. SAG 4852/2022', malezasSur: 'Malezas del Sur (INIA)', sagCuar: 'SAG área libre', inia: 'INIA (internet)' });
+Object.assign(FTE, { normaPapa: 'Norma SAG papa 2017', normaCer: 'Res. SAG 4852/2022', malezasSur: 'Malezas del Sur (INIA)', sagCuar: 'SAG área libre', inia: 'INIA (internet)', calendarioLP: 'Calendario La Pampa', programas: 'Programas del sur', bodegaLP: 'Bodega INIA La Pampa' });
 function fechaParaGD(A, l, gd) {
   const aj = A.et ? A.et.ajuste || 0 : 0;
   const d = A.S.dias.find(x => x.gdAc + aj >= gd);
@@ -4313,6 +4596,14 @@ function htmlNorma(l, A) {
       <label class="chk"><input type="checkbox" id="n_ajo">Vi ajo silvestre (Allium vineale)</label>
       <button class="btn sec blk" id="n_ev" style="margin-top:6px">Comparar con la norma</button><div id="n_res"></div>`;
     lista = [['rot', 'Sin la misma especie la temporada anterior (salvo misma variedad de igual o anterior categoría aprobada)'], ['ais', 'Separado al menos 2 m de otros semilleros'], ['letr', 'Letrero con N° de solicitud, superficie y nombre del potrero'], ['ajo', 'Revisado: sin ajo silvestre'], ['inscrito', 'Solicitud presentada'], ['lechoso', 'Inicio de grano lechoso informado al SAG']];
+  }
+  const prec = N.precedentes || [];
+  if (prec.length) {
+    const norm = x => x.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let msg, ok;
+    if (l.cultivo === 'papa') { const malos = prec.slice(0, 4).map((x, i) => [x, i]).filter(([x]) => /PAPA|TOMATE|AJI|PIMENT|BERENJ|TABACO|SOLAN/.test(norm(x))); ok = !malos.length; msg = ok ? 'Sin papa ni solanáceas en las últimas 4 temporadas: cumple la rotación.' : `Hubo ${malos.map(([x, i]) => `${x.toLowerCase()} hace ${i + 1} temporada${i ? 's' : ''}`).join(', ')}: la norma exige 4 años sin solanáceas.`; }
+    else { const esp = { trigo: /TRIGO/, avena: /AVENA/, cebada: /CEBADA/ }[l.cultivo]; ok = !(esp && esp.test(norm(prec[0]))); msg = ok ? 'La temporada anterior no fue la misma especie: cumple la rotación.' : `La temporada anterior fue ${prec[0].toLowerCase()}: solo se acepta si fue la misma variedad, de igual o anterior categoría y aprobada en campo. Revísalo.`; }
+    filas.push(`<div class="vent"><span><b>Rotación según cultivos precedentes</b><br><span class="tiny">${esc(prec.join(' → '))} (de la más reciente a la más antigua) · ${esc(msg)}</span></span><span class="tag" ${ok ? '' : 'style="border-color:var(--bad);color:var(--bad)"'}>${ok ? 'cumple' : 'revisar'}</span></div>`);
   }
   h += `<div class="small muted" style="margin:6px 0">${esc(l.cultivo === 'papa' ? G.NORMA_PAPA.nombres[cat] : G.NORMA_CER.nombres[cat])}. Las fechas de inspección salen del modelo de grados día${A.et && A.et.ajuste ? ', ajustado con tu visita a terreno' : ''}.</div>${filas.join('')}${tol}
     <h3>Lista de cumplimiento</h3>${lista.map(([k, t]) => `<label class="chk"><input type="checkbox" data-nc="${k}" ${chk[k] ? 'checked' : ''}>${esc(t)}</label>`).join('')}
@@ -4376,46 +4667,10 @@ function vMalezas() {
 // =====================================================================
 // CALENDARIO DE APLICACIONES DEL LOTE: lo que ya debería estar aplicado y lo que viene
 // =====================================================================
-const TIPOS_AP = { fungicida: 'Fungicidas', insecticida: 'Insecticidas', herbicida: 'Herbicidas', fertilizante: 'Fertilización', foliar: 'Foliares', desecante: 'Desecación' };
-const PROGRAMAS_LOTE = { sur: 'Programa fitosanitario del sur', sur5: 'Fitosanitario + insecticidas cada 5 días', lp: 'Calendario La Pampa' };
-function tipoDe(obj, prod) {
-  const o = (obj + ' ' + prod).toLowerCase();
-  if (/follaje|desec|rebrote|reglone|diquat/.test(o)) return 'desecante';
-  if (/maleza|paraquat|metribuzina|herbadox|glifosato/.test(o)) return 'herbicida';
-  if (/pulg|insect|vector/.test(o)) return 'insecticida';
-  if (/tiz|botri|altern|rizoc|desinfec|fusari|sarna/.test(o)) return 'fungicida';
-  if (/cal \+|yeso|muriato|kieserita|mezcla|potasio foliar|urea|fertiliz/.test(o)) return 'fertilizante';
-  return 'foliar';
-}
-function eventosPrograma(prog) {
-  const ev = [], add = (ddp, prod, obj, dosis, etapa, por, tipo) => ev.push({ ddp, prod, obj, dosis, etapa: etapa || '', por: por || [], tipo: tipo || tipoDe(obj, prod) });
-  if (prog === 'lp') {
-    G.CAL_LP.surco.forEach(([p, d]) => add(0, p, 'Rizoctonia, al surco', d, 'Plantación'));
-    G.CAL_LP.fungi.forEach(([d, p, dos]) => add(d, p, 'Tizón tardío', dos, ''));
-    G.CAL_LP.insect.forEach(([d, p, dos, ag]) => add(d, p, 'Pulgones', `${dos} en ${ag} L de agua/ha`, ''));
-    G.CAL_LP.aceite.forEach(([d, ag, l]) => add(d, 'Aceite mineral', 'Pulgones (barrera contra virus no persistentes)', `${String(l).replace('.', ',')} L/ha en ${ag} L de agua`, '', [], 'insecticida'));
-  } else {
-    G.PROG_FITO.forEach(b => b.filas.forEach(f => { const t = tipoDe(f[1], f[0]); if (prog === 'sur5' && t === 'insecticida') return; add(b.ddp, f[0], f[1], f[2], b.etapa, b.por, t); }));
-    if (prog === 'sur5') G.PROG_INSECT.forEach(([d, e, p, dos]) => add(d, p, 'Pulgones', dos, e, [], 'insecticida'));
-  }
-  G.PROG_MALEZAS.filter(m => !/Desecante/.test(m[2]) || prog === 'lp').forEach(([d, m, p, dos, por]) => add(d, p, 'Malezas', dos, m, [[por, 'programas']], /Desecante/.test(p) ? 'desecante' : 'herbicida'));
-  const mom = { 'Preplantación': -7, 'Plantación': 0, 'Emergencia': 30, 'Aporca': 25, 'Post floración': 85 };
-  G.FERT_PLAN.forEach(([m, p, d, por]) => add(mom[m] ?? 0, p, m === 'Emergencia' || m === 'Post floración' ? 'Nutrición foliar' : 'Fertilización', d, m, por ? [[por, 'programas']] : [], /foliar|Aminoácidos|Bioestimulante/i.test(p) ? 'foliar' : 'fertilizante'));
-  return ev.sort((a, b) => a.ddp - b.ddp);
-}
-function cruzarAplicaciones(l, ev) {
-  const apps = DB.apps.filter(a => a.lote_id === l.id).map(a => Object.assign({}, a, { _usada: false }));
-  const pal = s => String(s || '').toLowerCase().split(/[\s(+,/]+/).filter(w => w.length > 3);
-  ev.forEach(e => {
-    e.fecha = M.sumarDias(l.fecha_plantacion, e.ddp);
-    const cands = apps.filter(a => !a._usada && Math.abs(M.difDias(e.fecha, a.fecha)) <= 5 && (a.clase === e.tipo || pal(a.producto).some(w => pal(e.prod).includes(w)) || (e.tipo === 'fungicida' && /tizon|botritis|alternaria/.test(a.objetivo || '')) || (e.tipo === 'insecticida' && /pulg/.test(a.objetivo || ''))));
-    cands.sort((x, y) => Math.abs(M.difDias(e.fecha, x.fecha)) - Math.abs(M.difDias(e.fecha, y.fecha)));
-    if (cands[0]) { cands[0]._usada = true; e.app = cands[0]; }
-  });
-  return apps.filter(a => !a._usada);
-}
+function cruzarAplicaciones(l, ev) { return CAL.cruzar(l, ev, DB.apps); }
+const TIPOS_AP = CAL.TIPOS_AP, PROGRAMAS_LOTE = CAL.PROGRAMAS_LOTE, tipoDe = CAL.tipoDe, eventosPrograma = CAL.eventos;
 function htmlCalendario(l, A) {
-  const N = l.norma || {}, prog = N.prog || 'sur', filt = htmlCalendario._f || '';
+  const N = l.norma || {}, prog = N.prog || 'lp', filt = htmlCalendario._f || '';
   if (l.cultivo !== 'papa') {
     const apps = DB.apps.filter(a => a.lote_id === l.id).sort((a, b) => a.fecha < b.fecha ? 1 : -1);
     return `<div class="card" id="calCard"><h2>Calendario de aplicaciones</h2><div class="tiny">Aún no hay un programa de referencia de cereales cargado: si me mandas el que usan, lo agrego igual que en papa. Abajo están tus aplicaciones registradas.</div>${apps.length ? apps.map(a => htmlAppFila(a)).join('') : ''}</div>`;
@@ -4425,7 +4680,7 @@ function htmlCalendario(l, A) {
   const vis = ev.filter(e => !filt || e.tipo === filt);
   const pas = vis.filter(e => e.fecha <= hoy), fut = vis.filter(e => e.fecha > hoy);
   const faltan = pas.filter(e => !e.app), hechas = pas.filter(e => e.app);
-  const fila = (e, i) => `<div class="vent cal ${e.app ? 'ok' : e.fecha <= hoy ? 'falta' : ''}" style="align-items:flex-start"><span style="flex:1"><b>${fFechaL(e.fecha)}</b> <span class="tiny">${e.ddp < 0 ? 'antes de plantar' : e.ddp + ' DDP'}${e.etapa ? ' · ' + esc(e.etapa) : ''}</span><br>${esc(e.prod)} <span class="tag">${TIPOS_AP[e.tipo]}</span><br><span class="tiny">${esc(e.obj)} · ${esc(e.dosis)}${G.grupoDe && G.grupoDe(e.prod) ? ' · grupo ' + esc(G.grupoDe(e.prod)) : ''}</span>
+  const fila = (e, i) => `<div class="vent cal ${e.app ? 'ok' : e.fecha <= hoy ? 'falta' : ''}" style="align-items:flex-start"><span style="flex:1"><b>${fFechaL(e.fecha)}</b> <span class="tiny">${e.ddp < 0 ? 'antes de plantar' : e.ddp + ' DDP'}${e.etapa ? ' · ' + esc(e.etapa) : ''}</span><br>${esc(e.prod)} <span class="tag">${TIPOS_AP[e.tipo]}</span><br><span class="tiny">${esc(e.obj)} · ${esc(e.dosis)}${G.grupoDe && G.grupoDe(e.prod) ? ' · grupo ' + esc(G.grupoDe(e.prod)) : ''}</span>${e.app ? '' : htmlStockEv(e)}
     ${e.app ? `<br><span class="small">✓ Registrada el ${fFechaL(e.app.fecha)}: ${esc(e.app.producto || '')}</span>` : e.fecha <= hoy ? `<br><span class="small" style="color:var(--bad)">✕ No hay aplicación registrada cerca de esa fecha</span>` : `<br><span class="small">En ${M.difDias(hoy, e.fecha)} días</span>`}</span>
     ${!e.app ? `<button class="btn sec noRes" data-reg="${i}" style="padding:4px 8px">Registrar</button>` : ''}</div>`;
   const idx = e => ev.indexOf(e);
@@ -4450,6 +4705,11 @@ function enlazarCalendario(l) {
   $('#calCard').querySelectorAll('[data-reg]').forEach(b => b.onclick = () => {
     const e = htmlCalendario._ev[+b.dataset.reg]; const k = G.PROD_IA && Object.keys(G.PROD_IA).find(x => e.prod.toLowerCase().startsWith(x.toLowerCase().split(' (')[0]));
     const pre = { producto: e.prod.split(/ o |\(/)[0].trim(), clase: e.tipo, fecha: e.fecha <= hoyStr() ? e.fecha : hoyStr(), dosis: e.dosis, objetivo: e.tipo === 'fungicida' ? (/botri/i.test(e.obj) ? 'botritis' : /altern/i.test(e.obj) ? 'alternaria' : 'tizon') : e.tipo === 'insecticida' ? 'pulgones' : '', grupo: G.grupoDe ? G.grupoDe(e.prod) : '', ingrediente: k ? G.PROD_IA[k].ia : '' };
+    const cb = CAL.componentes(e, DB.prods)[0];
+    if (cb && cb.p) Object.assign(pre, { producto: cb.p.nombre, ingrediente: cb.p.ingrediente || pre.ingrediente, grupo: cb.p.grupo || pre.grupo, movilidad: undefined, carencia_dias: cb.p.carencia_dias ?? null });
+    if (cb && cb.d && cb.d.q != null) Object.assign(pre, { dosis_ha: Math.round(cb.d.q * 1000) / 1000, unidad: cb.d.U + '/ha' });
+    const agua = (String(e.dosis).match(/en (\d+) L de agua/) || [])[1]; if (agua) pre.volumen_ha = +agua;
+    delete pre.movilidad;
     ir(() => vAppForm(null, l.id, null, pre), 'Nueva aplicación', true);
   });
 }
@@ -4552,6 +4812,80 @@ CALC_FN.fertCompleto = function () {
 };
 G.FICHAS.push({ id: 'suelos-sur', cat: 'manejo', t: 'Suelos del sur de Chile para papa', calc: 'fertCompleto', res: 'Los tipos de suelo más comunes entre La Araucanía y Chiloé, y qué cambian en la fertilización y el manejo de la papa.', sec: Object.values(SUELOS).map(S => ({ h: S.n, p: S.prop.concat([`MO típica ${S.mo} %, pH ${S.ph}, densidad aparente ~${String(S.da).replace('.', ',')}. ${S.ej}.`]) })), fuentes: ['general', 'manual'] });
 
+
+// =====================================================================
+// HOY: lo que hay que hacer, inspecciones y la semana + NOTIFICACIONES PUSH
+// =====================================================================
+const VAPID_PUB = 'BOFEEIOhoh97wakKWasLzJ4GdjyERsobcOLSWLEW8s6Pb2WDPHgEBoLcJhRwUO6_mFy305gXsoJn4Yl5RaG8Ux4';
+function b64aU8(b) { const p = '='.repeat((4 - b.length % 4) % 4), s = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...s].map(c => c.charCodeAt(0))); }
+async function estadoPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { ok: false, msg: 'Este equipo o navegador no permite notificaciones.' };
+  const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription();
+  return { ok: true, sub, perm: Notification.permission };
+}
+async function activarPush() {
+  const perm = await Notification.requestPermission(); if (perm !== 'granted') throw new Error('No diste permiso para notificaciones. Puedes activarlo en los ajustes del teléfono (Apps → AgroClima → Notificaciones).');
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription(); if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aU8(VAPID_PUB) });
+  const j = sub.toJSON();
+  await sb('POST', 'ac_push?on_conflict=id', [{ id: j.endpoint.slice(-64), endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, etiqueta: (navigator.userAgent.match(/\(([^)]+)\)/) || [, ''])[1].slice(0, 60), activo: true, created_at: new Date().toISOString() }], 'resolution=merge-duplicates,return=minimal');
+  return sub;
+}
+async function desactivarPush() { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { const id = sub.endpoint.slice(-64); await sub.unsubscribe(); try { await sb('DELETE', `ac_push?id=eq.${encodeURIComponent(id)}`, null, 'return=minimal'); } catch (e) { } } }
+async function pintarPush(sel) {
+  const box = $(sel); if (!box) return;
+  let e; try { e = await estadoPush(); } catch (er) { e = { ok: false, msg: er.message }; }
+  if (!e.ok) { box.innerHTML = `<div class="tiny">${esc(e.msg)}</div>`; return; }
+  box.innerHTML = e.sub && e.perm === 'granted' ? `<div class="okmsg" style="margin-top:6px">Notificaciones activadas en este teléfono.</div><div class="row" style="gap:6px;margin-top:6px"><button class="btn sec grow" id="pu_t">Probar ahora</button><button class="btn sec grow" id="pu_off">Desactivar</button></div>` : `<button class="btn blk" id="pu_on" style="margin-top:8px">🔔 Activar notificaciones en este teléfono</button>`;
+  const msg = t => box.insertAdjacentHTML('beforeend', `<div class="tiny" style="margin-top:4px">${t}</div>`);
+  if ($('#pu_on')) $('#pu_on').onclick = async () => { try { await activarPush(); toast('Notificaciones activadas'); pintarPush(sel); } catch (er) { msg(esc(er.message)); } };
+  if ($('#pu_off')) $('#pu_off').onclick = async () => { await desactivarPush(); toast('Notificaciones desactivadas'); pintarPush(sel); };
+  if ($('#pu_t')) $('#pu_t').onclick = async () => { const reg = await navigator.serviceWorker.ready; reg.showNotification('AgroClima · prueba', { body: 'Así se verán los avisos. Tócalo para abrir "Hoy".', icon: 'icon-192.png', badge: 'icon-192.png', data: { url: './#hoy' } }); };
+}
+async function vHoy() {
+  const hoy = hoyStr(), lotes = DB.lotes.filter(l => l.activo !== false && loteCompleto(l));
+  V().innerHTML = `<div class="card"><h2>${esc(fFechaL(hoy))}</h2><div class="tiny">Resumen de ${lotes.length} lotes activos. Programa de aplicaciones: el elegido en cada lote (por defecto, calendario La Pampa).</div><div id="hoy_push"></div></div>
+    <div class="card" id="hoy_ap"><h2>Aplicar hoy y los próximos 2 días</h2><div class="tiny"><span class="spin"></span> Calculando…</div></div>
+    ${htmlBodegaHoy()}
+    <div class="card" id="hoy_insp"><h2>Inspecciones SAG que vienen</h2><div class="tiny"><span class="spin"></span></div></div>
+    <div class="card" id="hoy_sem"><h2>La semana</h2><div class="tiny"><span class="spin"></span></div></div>`;
+  pintarPush('#hoy_push');
+  if (!lotes.length) { $('#hoy_ap').innerHTML = '<div class="vacio">No hay lotes activos completos.</div>'; return; }
+  const filasAp = [], insp = [], decis = []; let ref = null;
+  const h2 = M.sumarDias(hoy, 2), h7 = M.sumarDias(hoy, -7), h21 = M.sumarDias(hoy, 21);
+  for (const l of lotes) {
+    let A = null, c = null; try { c = await climaLote(l, false); A = analizarLote(l, c.h); if (!ref) ref = { l, A, h: c.h }; } catch (e) { }
+    if (l.cultivo === 'papa') {
+      const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, DB.apps);
+      const prox = ev.filter(e => !e.app && e.fecha >= hoy && e.fecha <= h2), pend = ev.filter(e => !e.app && e.fecha < hoy && e.fecha >= h7);
+      if (prox.length || pend.length) filasAp.push({ l, prox, pend, dec: A ? A.dec.global : null, ven: A ? A.ven.lista[0] : null });
+      if (A && A.dec.global === 'APLICAR') decis.push(l);
+    }
+    if (A && l.categoria) {
+      const cat = G.catNorma(l.cultivo, l.categoria);
+      const ws = l.cultivo === 'papa' ? [['1ª inspección (emergencia a floración)', /Emergencia/, /Floraci/], ['2ª inspección (floración)', /Floraci/, /Desarrollo de tub/]] : [['Inspección (grano lechoso a pastoso)', /Z75/, /Z85/]];
+      if (cat && cat !== 'G') ws.forEach(([t, a, b]) => { const fa = fechaParaGD(A, l, gdEtapa(l, a)), fb = fechaParaGD(A, l, gdEtapa(l, b)); if (fa && fb && fb.f >= hoy && fa.f <= h21) insp.push({ l, t, fa, fb, ahora: fa.f <= hoy }); });
+    }
+  }
+  const fv = v => v ? `${fFecha(v.ini)} ${fHora(v.ini)}–${pad(+fHora(v.fin).slice(0, 2) + 1)}:00` : 'sin ventana en 72 h';
+  $('#hoy_ap').innerHTML = `<h2>Aplicar hoy y los próximos 2 días</h2>${decis.length ? `<div class="aviso">Tizón en APLICAR: ${decis.map(l => esc(l.nombre)).join(', ')}</div>` : ''}
+    ${filasAp.length ? filasAp.map(x => `<div class="vent" data-lote="${x.l.id}" style="align-items:flex-start;cursor:pointer"><span style="flex:1"><b>${esc(x.l.nombre)}</b> <span class="tiny">${M.difDias(x.l.fecha_plantacion, hoy)} DDP${x.dec ? ' · tizón ' + x.dec : ''}</span>
+      ${x.pend.map(e => `<br><span class="small" style="color:var(--bad)">Pendiente desde ${fFecha(e.fecha)}: ${esc(e.prod)} · ${esc(e.dosis)}</span>`).join('')}
+      ${x.prox.map(e => `<br><span class="small">${e.fecha === hoy ? '<b>Hoy</b>' : fFecha(e.fecha)}: ${esc(e.prod)} · ${esc(e.dosis)} <span class="tag">${TIPOS_AP[e.tipo]}</span></span>`).join('')}
+      <br><span class="tiny">Próxima ventana: ${fv(x.ven)}</span></span><span class="tiny">›</span></div>`).join('') : '<div class="okmsg">Nada del calendario para hoy ni los próximos 2 días, y nada pendiente de la última semana.</div>'}`;
+  $('#hoy_insp').innerHTML = `<h2>Inspecciones SAG que vienen</h2>${insp.length ? insp.sort((a, b) => a.fa.f < b.fa.f ? -1 : 1).map(x => `<div class="vent" data-lote="${x.l.id}" style="cursor:pointer"><span><b>${esc(x.l.nombre)}</b><br><span class="tiny">${esc(x.t)}: ${ventanaTxt(x.fa, x.fb)}</span></span><span class="tag" ${x.ahora ? 'style="border-color:var(--bad);color:var(--bad)"' : ''}>${x.ahora ? 'AHORA' : 'en ' + M.difDias(hoy, x.fa.f) + ' d'}</span></div>`).join('') : '<div class="tiny">Ninguna en las próximas 3 semanas.</div>'}<div class="tiny" style="margin-top:4px">Antes de cada inspección: depurar y revisar el letrero. Las fechas salen de los grados día de cada lote.</div>`;
+  if (!ref) { $('#hoy_sem').innerHTML = '<h2>La semana</h2><div class="error">No pude bajar el pronóstico.</div>'; return; }
+  const S = CAL.semana(ref.h, hoy, CFG), vmax = CFG.aplicacion.vientoMax;
+  const lst = a => a.length ? a.map(d => fFecha(d.f)).join(', ') : 'ninguno';
+  $('#hoy_sem').innerHTML = `<h2>La semana</h2><div class="tiny">Pronóstico del punto de ${esc(ref.l.nombre)} (tus lotes están cerca).</div>
+    <div class="grid3"><div class="kpi"><b>${S.secos.length}</b><span>días sin lluvia</span></div><div class="kpi"><b>${S.ventosos.length}</b><span>días con viento ≥ ${vmax} km/h</span></div><div class="kpi"><b>${n1(S.total)}</b><span>mm en 7 días</span></div></div>
+    <div class="small" style="margin-top:6px"><b>Sin lluvia:</b> ${lst(S.secos)}<br><b>Viento ≥ ${vmax} km/h (no aplicar):</b> ${lst(S.ventosos)}<br><b>Buenos para recorrer (sin lluvia de día):</b> ${lst(S.recorrer)}<br><b>Mejores ventanas para aplicar:</b> ${ref.A.ven.lista.slice(0, 4).map(fv).join(' · ') || 'ninguna en 72 h'}</div>
+    <h3>Lluvia por día</h3>${grafico(S.dias.map(d => ({ x: d.f, y: Math.round(d.pp * 10) / 10 })), { tipo: 'barra', unidad: 'mm', titulo: 'Lluvia por día' })}
+    <h3>Viento máximo por día</h3>${grafico(S.dias.map(d => ({ x: d.f, y: Math.round(d.vmax) })), { tipo: 'linea', unidad: 'km/h', titulo: 'Viento máximo', color: '#c2512b', marcas: [{ y: vmax, n: `límite ${vmax} km/h` }] })}
+    ${porque('', fundLista([['Sobre 25 km/h de viento la deriva lleva el producto fuera del objetivo: no se aplica.', 'general'], ['Los días sin lluvia en horario de trabajo sirven para recorrer, depurar y muestrear sin dañar el cultivo mojado.', 'general'], ['El calendario dice qué toca por días desde plantación; la alerta de tizón dice si el clima realmente lo exige.', 'programas']]))}`;
+  V().querySelectorAll('[data-lote]').forEach(e => e.onclick = () => { const l = DB.lotes.find(x => x.id === e.dataset.lote); ir(() => vLote(l.id), l.nombre, true); });
+}
+
 // ---------- Vista: Clima aquí (GPS actual) ----------
 async function vAqui() {
   V().innerHTML = `<div class="card vacio"><span class="spin"></span> Buscando tu ubicación…</div>`;
@@ -4577,7 +4911,8 @@ function campo(ruta, etiqueta, paso) {
   return `<div><label>${etiqueta}</label><input type="number" step="${paso || 1}" data-ruta="${ruta}" value="${v}"></div>`;
 }
 function vAjustes() {
-  V().innerHTML = `<div class="card"><h2>IA para fotos (gratis)</h2><div class="small">Para que la app interprete las fotos de la planta usa Gemini de Google en su nivel gratuito. Necesitas una clave propia: entra a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> con tu cuenta Gmail, crea la clave y pégala aquí. No pide tarjeta.</div>
+  V().innerHTML = `<div class="card"><h2>Notificaciones</h2><div class="small">Avisos en este teléfono los lunes, miércoles, viernes y domingo temprano: qué aplicar según el calendario, inspecciones SAG que vienen y cómo viene la semana (lluvia y viento).</div><div id="push_box"></div></div>
+    <div class="card"><h2>IA para fotos (gratis)</h2><div class="small">Para que la app interprete las fotos de la planta usa Gemini de Google en su nivel gratuito. Necesitas una clave propia: entra a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> con tu cuenta Gmail, crea la clave y pégala aquí. No pide tarjeta.</div>
     <label>Clave de Gemini</label><input id="ia_key" value="${esc(IA.key || '')}" placeholder="AIza…" autocomplete="off">
     <label>Modelo</label><input id="ia_mod" value="${esc(IA.modelo || IA_MODELO_DEF)}">
     <div class="tiny">La clave queda solo en este teléfono. En el nivel gratuito Google puede usar las fotos para mejorar sus productos: no envíes fotos con datos privados.</div>
@@ -4659,6 +4994,7 @@ function vAjustes() {
   };
   $('#s_s').onclick = () => sincronizar();
   $('#ia_ok').onclick = () => { IA = { key: $('#ia_key').value.trim(), modelo: $('#ia_mod').value.trim() || IA_MODELO_DEF }; LS.set('ac_ia', IA); $('#ia_msg').innerHTML = `<div class="okmsg">${IA.key ? 'Clave guardada.' : 'Clave borrada.'}</div>`; };
+  pintarPush('#push_box');
   $('#u_ab').onchange = e => { UI.abrir = e.target.checked; LS.set('ac_ui', UI); toast(UI.abrir ? 'Fundamentos abiertos' : 'Fundamentos cerrados'); };
   $('#c_g').onclick = () => {
     leerEtapas();
@@ -4671,8 +5007,10 @@ function vAjustes() {
 // ---------- Inicio ----------
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => { });
 estadoNube(nubeLista() ? 'pend' : 'off', nubeLista() ? 'Conectando' : 'Solo local');
-ir(vInicio, 'AgroClima LP');
+if (location.hash === '#hoy') { history.replaceState(null, '', location.pathname); pila = [{ fn: vInicio, titulo: 'AgroClima LP' }]; ir._act = { fn: vHoy, titulo: 'Hoy' }; $('#titulo').textContent = 'Hoy'; $('#btnAtras').style.display = ''; vHoy(); }
+else ir(vInicio, 'AgroClima LP');
 sincronizar(true).then(() => { if (ir._act && ir._act.fn === vInicio && DB.lotes.length) vInicio(); });
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.abrir === 'hoy') ir(vHoy, 'Hoy', true); });
 window.addEventListener('online', () => sincronizar(true));
 
 </script>
