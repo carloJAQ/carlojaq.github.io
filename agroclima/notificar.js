@@ -1,6 +1,6 @@
 // AgroClima · aviso automático (lo corre GitHub Actions todos los días).
 // 1) Hace una consulta a Supabase para que el proyecto gratis no se pause.
-// 2) Los lunes, miércoles, viernes y domingo (o si FORZAR=1) calcula el resumen y manda la notificación
+// 2) Todos los días (o si FORZAR=1) calcula el resumen completo y manda la notificación
 //    a los teléfonos que activaron los avisos en la app.
 // 3) Cada 15 minutos manda los mensajes escritos a mano en la app (tabla ac_mensajes) cuando llega su hora.
 // Usa el mismo código de cálculo que la app: lo baja de la página publicada.
@@ -11,7 +11,7 @@ const APP = process.env.APP_URL || 'https://carlojaq.github.io/agroclima/';
 const SB_URL = 'https://gdrnstimuliiyxsmvujq.supabase.co';
 const VAPID_PUB = process.env.VAPID_PUBLIC;
 const VAPID_PRIV = process.env.VAPID_PRIVATE;
-const DIAS_AVISO = [0, 1, 3, 5]; // domingo, lunes, miércoles, viernes
+const DIAS_AVISO = [0, 1, 2, 3, 4, 5, 6]; // todos los días
 
 const pad = n => String(n).padStart(2, '0');
 const hoyStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -58,6 +58,7 @@ async function main() {
 
   const [apps, cfgs, subs] = await Promise.all([sb('GET', 'ac_aplicaciones?select=*'), sb('GET', 'ac_config?id=eq.general&select=datos'), sb('GET', 'ac_push?select=*&activo=eq.true')]);
   const prods = await sb('GET', 'ac_productos?select=*').catch(() => []);
+  const visitas = await sb('GET', 'ac_visitas?select=lote_id,fecha,ajuste_gd').catch(() => []);
   if (!subs.length) { console.log('Nadie activó las notificaciones todavía.'); return; }
   const CFG = Object.assign(JSON.parse(JSON.stringify(M.CONFIG)), (cfgs[0] && cfgs[0].datos) || {});
   const CULT = { papa: 1, trigo: 1, avena: 1, cebada: 1 };
@@ -93,7 +94,10 @@ async function main() {
       const prom = pas.slice(-7).concat(fut.slice(0, 7)); const gdProm = prom.length ? prom.reduce((t, d) => t + d.gd, 0) / prom.length : 0;
       const fechaGD = gd => { const d = S.dias.find(x => x.gdAc >= gd); if (d) return d.fecha; if (!hd || gdProm <= 0.3) return null; return M.sumarDias(hoy, Math.ceil((gd - hd.gdAc) / gdProm)); };
       const et = (CFG[l.cultivo] || CFG.papa).etapas, gdE = re => (et.find(e => re.test(e.n)) || {}).gd;
-      const r = { l, dec: dec.global, prox: [], pend: [], insp: [] };
+      const vis = visitas.filter(x => x.lote_id === l.id && String(x.fecha).slice(0, 10) <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], aj = vis ? +vis.ajuste_gd || 0 : 0;
+      const etp = hd ? M.etapa(hd.gdAc, l, CFG, gdProm, hoy, aj) : null;
+      const r = { l, dec: dec.global, por: dec.por || [], prox: [], pend: [], insp: [], cambio: null, gd: hd ? hd.gdAc + aj : null, etapa: etp ? etp.actual : null, gdProm };
+      if (hd) { const ay = S.dias.find(x => x.fecha === M.sumarDias(hoy, -1)), g0 = (ay ? ay.gdAc : hd.gdAc) + aj, g3 = hd.gdAc + aj + 3 * gdProm; r.cambios = et.filter(x => x.gd > g0 && x.gd <= g3).map(x => ({ n: x.n, f: fechaGD(x.gd - aj) || hoy })); }
       if (l.cultivo === 'papa') {
         const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, ap);
         r.prox = ev.filter(e => !e.app && e.fecha >= hoy && e.fecha <= M.sumarDias(hoy, 2));
@@ -110,27 +114,42 @@ async function main() {
   const Sm = CAL.semana(refH, hoy, CFG), ven = M.ventanas(refH, ahoraStr(), CFG, 72);
   const corto = n => String(n).split(' · ')[0].replace(/\b(\w)(\w*)/g, (m, a, b) => a + b.toLowerCase());
   const aplicar = res.filter(r => r.prox.length || r.pend.length || r.dec === 'APLICAR');
-  const partes = [];
+  const D = M.diario(refH, CFG), dh = D.find(d => d.fecha === hoy) || {}, pas7 = D.filter(d => d.fecha < hoy && d.fecha >= M.sumarDias(hoy, -7)), fut7 = D.filter(d => d.fecha > hoy && d.fecha <= M.sumarDias(hoy, 7));
+  const sum = (a, k) => a.reduce((t, d) => t + (d[k] || 0), 0), r1 = x => Math.round(x * 10) / 10, r0 = x => Math.round(x), vmax = CFG.aplicacion.vientoMax;
+  const dS = f => fCorta(f).split(' ')[0], ctl = l => l.numero_control ? 'N° ' + l.numero_control : String(l.nombre || '').split(' · ')[0];
+  const lin = [];
+  // 1) clima de hoy y horas para aplicar
+  lin.push(`🌡 Hoy ${r0(dh.tmin)}–${r0(dh.tmax)} °C · lluvia ${r1(dh.pp || 0)} mm · HR ${r0(dh.hr || 0)} % · viento máx ${r0(dh.viento || 0)} km/h, ráfagas ${r0(dh.rafaga || 0)}`);
+  const vHoyL = ven.lista.filter(v => v.ini.slice(0, 10) === hoy), hh = v => `${v.ini.slice(11, 13)}–${pad(+v.fin.slice(11, 13) + 1)} h`;
+  const vSig = ven.lista.find(v => v.ini.slice(0, 10) > hoy);
+  lin.push(vHoyL.length ? `✅ Se puede aplicar hoy: ${vHoyL.map(hh).join(', ')} (viento <${vmax} km/h y sin lluvia)` : `⛔ Hoy no hay horas aptas para aplicar${vSig ? ` · próxima ventana ${dS(vSig.ini.slice(0, 10))} ${hh(vSig)}` : ''}`);
+  // 2) próximos días: temperatura, lluvia y viento por día
+  lin.push('📅 ' + fut7.slice(0, 5).map(d => `${dS(d.fecha)} ${r0(d.tmin)}/${r0(d.tmax)}° ${r1(d.pp)}mm ${r0(d.viento)}km/h${d.viento >= vmax ? '⚠' : ''}`).join(' · '));
+  lin.push(`💧 Lluvia últimos 7 días ${r0(sum(pas7, 'pp'))} mm · próximos 7 días ${r0(sum(fut7, 'pp'))} mm`);
+  const hel = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 7) && d.tmin <= 1);
+  if (hel.length) lin.push(`❄️ Riesgo de helada: ${hel.map(d => `${dS(d.fecha)} (${r1(d.tmin)} °C)`).join(', ')}`);
+  // 3) tizón
+  const papas = res.filter(r => r.l.cultivo === 'papa'), apl = papas.filter(r => r.dec === 'APLICAR'), nV = papas.filter(r => r.dec === 'VIGILAR').length;
+  if (papas.length) lin.push(`🍂 Tizón: ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')}` : 'ningún lote en APLICAR'}${nV ? ` · vigilar ${nV}` : ''}`);
+  // 4) aplicaciones del calendario por número de control
   if (aplicar.length) {
-    const nPend = aplicar.filter(r => r.pend.length).length, nHoy = aplicar.filter(r => !r.pend.length && r.prox.some(e => e.fecha === hoy)).length;
-    const nTiz = aplicar.filter(r => r.dec === 'APLICAR').length;
-    const prods = {}; aplicar.forEach(r => r.pend.concat(r.prox).forEach(e => { const p = String(e.prod).split(/ \(| o |,/)[0].trim(); (prods[p] = prods[p] || new Set()).add(r.l.id); }));
-    const top = Object.entries(prods).sort((a, b) => b[1].size - a[1].size).slice(0, 3).map(([p, s]) => `${p} (${s.size})`);
-    const det = [nPend && `${nPend} atrasado${nPend > 1 ? 's' : ''}`, nHoy && `${nHoy} para hoy`, nTiz && `${nTiz} por tizón`].filter(Boolean).join(', ');
-    partes.push(`Aplicar en ${aplicar.length} lote${aplicar.length > 1 ? 's' : ''}${det ? ' (' + det + ')' : ''}${top.length ? ': ' + top.join(', ') : ''}`);
-  }
-  else partes.push('Sin aplicaciones del calendario para hoy y mañana');
+    const pr = e => String(e.prod).split(/ \(| o /)[0];
+    const it = aplicar.filter(r => r.prox.length || r.pend.length).sort((a, b) => (b.prox.length ? 1 : 0) - (a.prox.length ? 1 : 0) || b.pend.length - a.pend.length).map(r => { const dias = {}; r.prox.forEach(e => (dias[e.fecha] = dias[e.fecha] || []).push(pr(e))); const t = Object.keys(dias).sort().map(f => `${f === hoy ? 'hoy' : dS(f)} ${dias[f].join(', ')}`); if (r.pend.length) t.push(`${r.pend.length} atrasada${r.pend.length > 1 ? 's' : ''}`); return `${ctl(r.l)}: ${t.join('; ')}`; });
+    lin.push(`🧪 Aplicar\n${it.slice(0, 8).map(x => '  • ' + x).join('\n')}${it.length > 8 ? `\n  • y ${it.length - 8} solicitudes más` : ''}`);
+  } else lin.push('🧪 Sin aplicaciones del calendario para hoy y los próximos 2 días');
+  // 5) cambios de etapa por número de control (desde ayer hasta 3 días más)
+  const cam = res.filter(r => r.cambios && r.cambios.length).flatMap(r => r.cambios.map(c => ({ r, c }))).sort((a, b) => a.c.f < b.c.f ? -1 : 1);
+  if (cam.length) lin.push(`🌱 Cambio de etapa: ${cam.slice(0, 8).map(x => `${ctl(x.r.l)} → ${x.c.n} (${x.c.f <= hoy ? (x.c.f === hoy ? 'hoy' : 'ayer') : dS(x.c.f)})`).join(' · ')}${cam.length > 8 ? ` · y ${cam.length - 8} más` : ''}`);
+  // 6) bodega y SAG
   if (prods.some(p => p.stock != null)) {
     const Bd = CAL.balance(lotes, apps.map(a => Object.assign({}, a, { fecha: String(a.fecha).slice(0, 10) })), prods, hoy, M.sumarDias(hoy, 3));
     const fb = Bd.filas.filter(f => (f.estado === 'sin' || f.estado === 'falta') && f.n);
-    if (fb.length) partes.push('Falta en bodega: ' + fb.slice(0, 3).map(f => f.estado === 'sin' ? f.nombre : `${f.nombre} (faltan ${Math.ceil(f.falta)} ${f.U})`).join(', '));
+    if (fb.length) lin.push('📦 Falta en bodega: ' + fb.slice(0, 3).map(f => f.estado === 'sin' ? f.nombre : `${f.nombre} (faltan ${Math.ceil(f.falta)} ${f.U})`).join(', '));
   }
   const ins = res.filter(r => r.insp.length);
-  if (ins.length) partes.push(`Inspección SAG esta semana: ${ins.length} lote${ins.length > 1 ? 's' : ''}`);
-  partes.push(`Sin lluvia: ${Sm.secos.map(d => fCorta(d.f).split(' ')[0]).join(', ') || 'ningún día'}`);
-  if (Sm.ventosos.length) partes.push(`Viento ≥${CFG.aplicacion.vientoMax}: ${Sm.ventosos.map(d => fCorta(d.f).split(' ')[0]).join(', ')}`);
-  const v = ven.lista[0]; if (v) partes.push(`Ventana: ${fCorta(v.ini.slice(0, 10))} ${v.ini.slice(11, 16)}–${pad(+v.fin.slice(11, 13) + 1)}:00`);
-  const msg = { title: `AgroClima · ${fCorta(hoy)}`, body: partes.join(' · '), url: './#hoy', tag: 'agroclima-' + hoy };
+  if (ins.length) lin.push(`🔍 Inspección SAG esta semana: ${ins.map(r => ctl(r.l)).join(', ')}`);
+  const cuerpo = lin.join('\n');
+  const msg = { title: `AgroClima · ${fCorta(hoy)}`, body: cuerpo.length > 1800 ? cuerpo.slice(0, 1797) + '…' : cuerpo, url: './#hoy', tag: 'agroclima-' + hoy };
   console.log('Aviso:', JSON.stringify(msg));
 
   const r = await enviar(subs, msg, 6 * 3600, sb);
