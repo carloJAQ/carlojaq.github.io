@@ -2660,7 +2660,11 @@ function eventosPrograma(prog) {
   if (false) G.FERT_PLAN.forEach(([m, p, d, por]) => add(mom[m] ?? 0, p, m === 'Emergencia' || m === 'Post floración' ? 'Nutrición foliar' : 'Fertilización', d, m, por ? [[por, 'programas']] : [], /foliar|Aminoácidos|Bioestimulante/i.test(p) ? 'foliar' : 'fertilizante'));
   return ev.sort((a, b) => a.ddp - b.ddp);
 }
+// Clave de un evento del calendario (para quitarlo de una solicitud: norma.omitir)
+const claveEv = e => e.ddp + '|' + String(e.prod || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 function cruzarAplicaciones(l, ev, todas) {
+  const om = new Set(((l.norma || {}).omitir) || []); ev.omitidas = [];
+  for (let i = ev.length - 1; i >= 0; i--) if (om.has(claveEv(ev[i]))) { ev[i].fecha = M.sumarDias(l.fecha_plantacion, ev[i].ddp); ev.omitidas.unshift(ev[i]); ev.splice(i, 1); }
   const apps = (todas || []).filter(a => a.lote_id === l.id).map(a => Object.assign({}, a, { _usada: false }));
   const pal = s => String(s || '').toLowerCase().split(/[\s(+,/]+/).filter(w => w.length > 3);
   ev.forEach(e => {
@@ -2775,7 +2779,7 @@ function cruzarAplicaciones(l, ev, todas) {
     lista.sort((a, b) => orden[a.estado] - orden[b.estado] || (a.desde || '9') .localeCompare(b.desde || '9') || a.nombre.localeCompare(b.nombre));
     return { filas: lista, sinSup, nPapa: papa.length, ha };
   }
-  return { TIPOS_AP, PROGRAMAS_LOTE, tipoDe, eventos: eventosPrograma, cruzar: cruzarAplicaciones, VARS, CLAVES, semana, norm, mismoNombre, esProducto, dosisHa, componentes, cantidadApp, usado, balance, unidadBase };
+  return { TIPOS_AP, PROGRAMAS_LOTE, tipoDe, eventos: eventosPrograma, cruzar: cruzarAplicaciones, VARS, CLAVES, semana, claveEv, norm, mismoNombre, esProducto, dosisHa, componentes, cantidadApp, usado, balance, unidadBase };
 })();
 if (typeof module !== 'undefined') module.exports = CAL;
 
@@ -3084,7 +3088,16 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   if (t === 'mas') ir(vMas, 'Más');
 });
 const V = () => $('#vista');
-const badge = d => { const c = d === 'NO APLICAR' ? 'NO' : d === 'SOLO CLIMA' ? 'SOLO' : d; const ic = { APLICAR: '▲', VIGILAR: '●', PROTEGIDO: '■', 'NO APLICAR': '✓', 'SOLO CLIMA': '–' }[d] || ''; return `<span class="badge b-${c}">${ic} ${esc(d)}</span>`; };
+const badge = (d, A) => { const c = d === 'NO APLICAR' ? 'NO' : d === 'SOLO CLIMA' ? 'SOLO' : d; const ic = { APLICAR: '▲', VIGILAR: '●', PROTEGIDO: '■', 'NO APLICAR': '✓', 'SOLO CLIMA': '–' }[d] || ''; const k = d === 'APLICAR' && A ? condAplicar(A) : null; return `<span class="badge b-${c}">${ic} ${esc(d)}${k ? ` <span style="font-weight:500">(${k.hay ? 'hay condiciones' : 'no hay condiciones'})</span>` : ''}</span>`; };
+// ¿Se puede aplicar hoy? Viento, lluvia y temperatura del pronóstico horario (ventanas de aplicación)
+function condAplicar(A) {
+  const ven = A && A.ven; if (!ven) return null;
+  const hoy = hoyStr(), hh = v => `${v.ini.slice(11, 13)}–${pad(+v.fin.slice(11, 13) + 1)} h`;
+  if (ven.ahora && ven.ahora.ok) { const v = ven.lista[0]; return { hay: true, txt: `Hay condiciones para aplicar ahora${v && v.ini.slice(0, 10) === hoy ? ` (${hh(v)})` : ''}.` }; }
+  const vh = ven.lista.find(v => v.ini.slice(0, 10) === hoy); if (vh) return { hay: true, txt: `Hay condiciones para aplicar hoy de ${hh(vh)}.` };
+  const sig = ven.lista[0], mot = ven.ahora ? ven.ahora.motivos.filter(m => m !== 'fuera de horario') : [];
+  return { hay: false, txt: `No hay condiciones para aplicar hoy${mot.length ? ' (' + mot.join(', ') + ')' : ' (lluvia o viento en las horas de trabajo)'}.${sig ? ` Próxima ventana: ${fFecha(sig.ini)} ${hh(sig)}.` : ' Sin ventana en las próximas 72 h.'}` };
+}
 
 // ---------- Vista: Inicio (lotes) ----------
 function vInicio() {
@@ -3127,7 +3140,7 @@ function cargarResumenes(lotes, forzar) {
       const c = await climaLote(l, forzar);
       const A = analizarLote(l, c.h);
       subirClimaDiario(l, A);
-      est.innerHTML = badge(A.dec.global);
+      est.innerHTML = badge(A.dec.global, A);
       const v = A.ven.lista[0];
       let ext = '';
       if (l.cultivo === 'papa') { const S = estadoApps(l); ext += S.atras.length ? `<b style="color:var(--bad)">${S.atras.length} aplicaciones atrasadas</b>` : 'Al día con el calendario'; if (S.futuras[0]) ext += ` · próxima: ${esc(S.futuras[0].prod.split(/ \(| o /)[0])} ${fFecha(S.futuras[0].fecha)}`; ext += '<br>'; }
@@ -3307,7 +3320,7 @@ async function vLote(id, forzar) {
   T.res = htmlResumenSol(l, A);
   // Decisión
   if (Object.keys(A.dec.enfermedades).length) {
-    T.clima += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">${l.cultivo === 'papa' ? 'Decisión de aplicación' : 'Alertas'}</h2>${badge(A.dec.global)}</div>
+    T.clima += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">${l.cultivo === 'papa' ? 'Decisión de aplicación' : 'Alertas'}</h2>${badge(A.dec.global, A)}</div>${A.dec.global === 'APLICAR' ? `<div class=\"${condAplicar(A).hay ? 'okmsg' : 'aviso'}\" style=\"margin-top:8px\">${condAplicar(A).txt}</div>` : ''}
     <div style="margin-top:8px">${Object.entries(A.dec.enfermedades).map(([k, r]) => htmlEnfermedad(k, r, l)).join('')}</div>
     <div class="tiny" style="margin-top:6px">Apoyo a la decisión con modelos referenciales. Confirma con monitoreo en terreno.</div></div>`;
   }
@@ -3418,7 +3431,8 @@ document.addEventListener('click', e => {
 });
 
 // ---------- Fundamentos (el porqué) ----------
-const UI = Object.assign({ abrir: true }, LS.get('ac_ui', {}));
+const UI = Object.assign({ abrir: false }, LS.get('ac_ui', {}));
+if (!LS.get('ac_ui_v14', false)) { UI.abrir = false; LS.set('ac_ui', UI); LS.set('ac_ui_v14', true); }
 const FTE = { manual: 'Manual INIA 2009', inifap: 'INIFAP 2020', fao: 'FAO 2009', fragTizon: 'FRAG 2025', fragGral: 'FRAG 2024', fragCer: 'FRAG cereales 2024', irag1: 'IRAG 2021', irag2: 'IRAG cereales 2021', irag5: 'IRAG papa 2022', wrag: 'WRAG 2025', wragAmen: 'WRAG', malezas: 'AHDB 2019', hrac: 'WRAG 2022', joe: 'AHDB 2021', pudSeca: 'BPC 2006', hutton: 'Hutton 2022', cb08: 'AHDB CB08', ciampi: 'Ciampi 1973', sin: 'AHDB 2021', general: 'conocimiento general' };
 const fuenteTag = k => `<span class="fte" title="${esc(G.FUENTES[k] || '')}">${esc(FTE[k] || k)}</span>`;
 const fundTxt = f => f ? `${esc(f[0])} ${fuenteTag(f[1])}` : '';
@@ -3756,7 +3770,7 @@ function htmlResumenSol(l, A) {
   const ins = inspeccionesLote(l, A), insA = ins.find(x => x.estado !== 'pasó');
   const v = A.ven.lista[0], pp7 = A.pas.slice(-7).reduce((t, d) => t + d.pp, 0), ppF = A.fut.reduce((t, d) => t + d.pp, 0);
   let h = `<div class="card"><h2>Cómo va la solicitud</h2>
-    ${et ? `<div class="row" style="align-items:center;gap:10px"><div class="dibEt">${dibujoEtapa(l.cultivo, et.i, 72)}</div><div class="grow"><b style="font-size:17px">${esc(et.actual)}</b><div class="tiny">${dias} días desde ${papa ? 'plantación' : 'siembra'} · ${n0(A.hd ? A.hd.gdAc : 0)} GD</div>${et.siguiente ? `<div class="small">Viene <b>${esc(et.siguiente)}</b>${et.fechaSig ? ` hacia el ${fFechaL(et.fechaSig)}` : ''}</div>` : ''}</div>${Object.keys(A.dec.enfermedades).length ? badge(A.dec.global) : ''}</div>` : '<div class="muted">Sin datos de etapa aún.</div>'}`;
+    ${et ? `<div class="row" style="align-items:center;gap:10px"><div class="dibEt">${dibujoEtapa(l.cultivo, et.i, 72)}</div><div class="grow"><b style="font-size:17px">${esc(et.actual)}</b><div class="tiny">${dias} días desde ${papa ? 'plantación' : 'siembra'} · ${n0(A.hd ? A.hd.gdAc : 0)} GD</div>${et.siguiente ? `<div class="small">Viene <b>${esc(et.siguiente)}</b>${et.fechaSig ? ` hacia el ${fFechaL(et.fechaSig)}` : ''}</div>` : ''}</div>${Object.keys(A.dec.enfermedades).length ? badge(A.dec.global, A) : ''}</div>` : '<div class="muted">Sin datos de etapa aún.</div>'}`;
   if (papa) {
     const S = estadoApps(l);
     h += `<div class="grid3" style="margin-top:10px"><div class="kpi"><b>${S.reg.length}</b><span>aplicaciones registradas</span></div><div class="kpi"><b style="${S.atras.length ? 'color:var(--bad)' : ''}">${S.atras.length}</b><span>atrasadas (calendario)</span></div><div class="kpi"><b>${S.prox.length}</b><span>vienen en 7 días</span></div></div>`;
@@ -3769,7 +3783,7 @@ function htmlResumenSol(l, A) {
   if (papa) {
     const S = estadoApps(l);
     resumenSol._ev = S.atras.slice(-6).concat(S.prox);
-    h += `<div class="card"><h2>Para hacer</h2>${resumenSol._ev.length ? resumenSol._ev.map((e, i) => filaEvento(e, i, 'rs')).join('') : '<div class="okmsg">Nada atrasado ni para los próximos 7 días.</div>'}${S.atras.length > 6 ? `<div class="tiny">Y ${S.atras.length - 6} atrasadas más; míralas en Aplicaciones.</div>` : ''}${S.atras.length ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-top:8px">Ya se hicieron algunas: dar por hechas…</button>` : ''}<div class="tiny" style="margin-top:4px">Atrasada = el calendario la indicaba y no hay una aplicación registrada que la cubra. <b>Mantén apretada una aplicación para darle visto bueno.</b></div></div>`;
+    h += `<div class="card"><h2>Para hacer</h2>${resumenSol._ev.length ? resumenSol._ev.map((e, i) => filaEvento(e, i, 'rs')).join('') : '<div class="okmsg">Nada atrasado ni para los próximos 7 días.</div>'}${S.atras.length > 6 ? `<div class="tiny">Y ${S.atras.length - 6} atrasadas más; míralas en Aplicaciones.</div>` : ''}${S.atras.length ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-top:8px">Ya se hicieron algunas: dar por hechas…</button>` : ''}<div class="tiny" style="margin-top:4px">Atrasada = el calendario la indicaba y no hay una aplicación registrada que la cubra. <b>Mantén apretada una aplicación para darle visto bueno o quitarla si no se va a aplicar.</b></div></div>`;
   }
   return h;
 }
@@ -4957,6 +4971,7 @@ function htmlCalendario(l, A) {
     ${faltan.length ? `<h3>Deberían estar aplicadas</h3>${faltan.map(e => fila(e, idx(e))).join('')}` : ''}
     ${hechas.length ? `<details><summary class="small">Ya registradas (${hechas.length})</summary>${hechas.map(e => fila(e, idx(e))).join('')}</details>` : ''}
     ${extra.length ? `<details><summary class="small">Aplicaciones registradas fuera del programa (${extra.length})</summary>${extra.map(a => htmlAppFila(a)).join('')}</details>` : ''}
+    ${ev.omitidas && ev.omitidas.length ? `<details><summary class="small">Quitadas del calendario (${ev.omitidas.length})</summary>${ev.omitidas.map(e => `<div class="vent"><span><b>${esc(e.prod)}</b><br><span class="tiny">${fFechaL(e.fecha)} · ${e.ddp} DDP · ${esc(e.dosis)}</span></span><button class="btn sec noRes" data-rest="${esc(CAL.claveEv(e))}" style="padding:4px 8px">Restaurar</button></div>`).join('')}</details>` : ''}
     ${porque('', fundLista([['El calendario se arma con los días desde plantación (DDP) del programa elegido. Una aplicación cuenta como hecha si registraste algo del mismo tipo o el mismo producto hasta 5 días antes o después.', 'programas'], ['El programa ordena los productos y la rotación de grupos, pero no reemplaza a la alerta: si el modelo dice que no hay riesgo, una aplicación de tizón se puede postergar; si hay riesgo alto, se adelanta.', 'programas'], ['Las fechas no se mueven con el clima: si tu cultivo va adelantado o atrasado (lo ves en la visita a terreno), considera el estado de la planta antes que el día exacto.', 'general']]))}
     <a href="#" class="small" data-ficha="${prog === 'lp' ? 'prog-lapampa' : 'prog-fito'}">Ver el programa completo</a></div>`;
   htmlCalendario._ev = ev;
@@ -4969,6 +4984,7 @@ function enlazarCalendario(l) {
   $('#calCard').querySelectorAll('[data-cf]').forEach(b => b.onclick = () => { htmlCalendario._f = b.dataset.cf; repintarCal(l); });
   $('#calCard').querySelectorAll('[data-reg]').forEach(b => b.onclick = () => registrarEvento(l, htmlCalendario._ev[+b.dataset.reg]));
   $('#calCard').querySelectorAll('[data-calev]').forEach(el => mantener(el, () => menuEvento(l, htmlCalendario._ev[+el.dataset.calev])));
+  $('#calCard').querySelectorAll('[data-rest]').forEach(b => b.onclick = () => { omitirEvento(DB.lotes.find(x => x.id === l.id), b.dataset.rest, false); toast('Restaurada en el calendario'); vLote(l.id); });
 }
 function registrarEvento(l, e) { const pre = preEvento(l, e); ir(() => vAppForm(null, l.id, null, pre), 'Nueva aplicación', true); }
 // Datos de una aplicación armados desde un evento del calendario (producto de bodega, dosis, agua)
@@ -4992,18 +5008,36 @@ function menuEvento(l, e, despues) {
     <button class="btn blk" data-m="hoy">✓ Aplicada hoy (visto bueno)</button>
     ${e.fecha < hoy ? `<button class="btn sec blk" data-m="cal" style="margin-top:8px">✓ Aplicada el ${fFechaL(e.fecha)} (fecha del calendario)</button>` : ''}
     <label style="margin-top:8px">Otra fecha</label><div class="row" style="gap:6px"><input type="date" id="me_f" value="${hoy}" max="${hoy}"><button class="btn sec" data-m="otra">✓</button></div>
-    <button class="btn sec blk" data-m="det" style="margin-top:8px">Registrar con detalle…</button><button class="btn sec blk" data-m="x" style="margin-top:8px">Cancelar</button></div>`;
+    <button class="btn sec blk" data-m="det" style="margin-top:8px">Registrar con detalle…</button>
+    <div class="sub" style="margin-top:12px">No se va a aplicar</div>
+    <button class="btn peligro blk" data-m="q1">✕ Quitar de esta solicitud</button>
+    <button class="btn peligro blk" data-m="qt" style="margin-top:8px">✕ Quitar de todas las solicitudes de papa</button>
+    <div class="tiny" style="margin-top:4px">Se puede restaurar en Aplicaciones → Calendario → "Quitadas del calendario".</div>
+    <button class="btn sec blk" data-m="x" style="margin-top:10px">Cancelar</button></div>`;
   document.body.appendChild(ov);
   ov.onclick = ev => {
     const b = ev.target.closest('[data-m]'); if (!b) { if (ev.target === ov) ov.remove(); return; }
     const m = b.dataset.m; if (m === 'x') return ov.remove();
     if (m === 'det') { ov.remove(); return registrarEvento(l, e); }
+    if (m === 'q1' || m === 'qt') {
+      ov.remove(); const k = CAL.claveEv(e);
+      const ls = m === 'q1' ? [DB.lotes.find(x => x.id === l.id)] : DB.lotes.filter(x => x.cultivo === 'papa' && x.activo !== false);
+      ls.forEach(x => omitirEvento(x, k, true));
+      toast(`Quitada: ${String(e.prod).split(/ \(| o /)[0]}${m === 'qt' ? ` (${ls.length} solicitudes)` : ''}`);
+      if (despues) despues(); else if (ir._act && ir._act.fn) ir._act.fn();
+      return;
+    }
     const f = m === 'hoy' ? hoy : m === 'cal' ? e.fecha : $('#me_f').value; if (!f) return toast('Elige la fecha'); ov.remove();
     const pre = preEvento(l, e);
     guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { fecha: f, notas: `✓ Visto bueno (calendario La Pampa, ${e.ddp} DDP).` }));
     toast('✓ ' + String(e.prod).split(/ \(| o /)[0] + ' aplicada');
     if (despues) despues(); else if (ir._act && ir._act.fn) ir._act.fn();
   };
+}
+function omitirEvento(l, k, quitar) {
+  const lo = clon(l); lo.norma = Object.assign({ chk: {} }, lo.norma || {});
+  const set = new Set(lo.norma.omitir || []); quitar ? set.add(k) : set.delete(k); lo.norma.omitir = [...set];
+  lo.updated_at = new Date().toISOString(); guardarRegistro('lotes', lo); Object.assign(l, lo);
 }
 // Marcar de una vez como hechas las aplicaciones atrasadas que el usuario elija
 function darPorHechas(l) {
@@ -5174,7 +5208,7 @@ async function vHoy() {
       const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, DB.apps);
       const prox = ev.filter(e => !e.app && e.fecha >= hoy && e.fecha <= h2), pend = ev.filter(e => !e.app && e.fecha < hoy && e.fecha >= h7);
       if (prox.length || pend.length) filasAp.push({ l, prox, pend, dec: A ? A.dec.global : null, ven: A ? A.ven.lista[0] : null });
-      if (A && A.dec.global === 'APLICAR') decis.push(l);
+      if (A && A.dec.global === 'APLICAR') decis.push({ l, k: condAplicar(A) });
     }
     if (A && l.categoria) {
       const cat = G.catNorma(l.cultivo, l.categoria);
@@ -5184,11 +5218,11 @@ async function vHoy() {
   }
   const fv = v => v ? `${fFecha(v.ini)} ${fHora(v.ini)}–${pad(+fHora(v.fin).slice(0, 2) + 1)}:00` : 'sin ventana en 72 h';
   vHoy._ev = [];
-  $('#hoy_ap').innerHTML = `<h2>Aplicar hoy y los próximos 2 días</h2>${decis.length ? `<div class="aviso">Tizón en APLICAR: ${decis.map(l => esc(l.nombre)).join(', ')}</div>` : ''}
+  $('#hoy_ap').innerHTML = `<h2>Aplicar hoy y los próximos 2 días</h2>${decis.length ? `<div class="aviso">Tizón en APLICAR:${decis.map(x => `<br><b>${esc(x.l.nombre)}</b>${x.l.numero_control ? ' (N° ' + esc(x.l.numero_control) + ')' : ''}: ${x.k ? (x.k.hay ? 'hay condiciones' : 'no hay condiciones') + ' — ' + esc(x.k.txt) : ''}`).join('')}</div>` : ''}
     ${filasAp.length ? filasAp.map(x => `<div class="vent" data-lote="${x.l.id}" style="align-items:flex-start;cursor:pointer"><span style="flex:1"><b>${esc(x.l.nombre)}</b> <span class="tiny">${M.difDias(x.l.fecha_plantacion, hoy)} DDP${x.dec ? ' · tizón ' + x.dec : ''}</span>
       ${x.pend.map(e => `<br><span class="small hoyEv" data-hev="${vHoy._ev.push({ l: x.l, e }) - 1}" style="color:var(--bad)">Pendiente desde ${fFecha(e.fecha)}: ${esc(e.prod)} · ${esc(e.dosis)}</span>`).join('')}
       ${x.prox.map(e => `<br><span class="small hoyEv" data-hev="${vHoy._ev.push({ l: x.l, e }) - 1}">${e.fecha === hoy ? '<b>Hoy</b>' : fFecha(e.fecha)}: ${esc(e.prod)} · ${esc(e.dosis)} <span class="tag">${TIPOS_AP[e.tipo]}</span></span>`).join('')}
-      <br><span class="tiny">Próxima ventana: ${fv(x.ven)}</span></span><span class="tiny">›</span></div>`).join('') : '<div class="okmsg">Nada del calendario para hoy ni los próximos 2 días, y nada pendiente de la última semana.</div>'}${filasAp.length ? '<div class="tiny" style="margin-top:6px">Mantén apretada una aplicación para darle visto bueno.</div>' : ''}`;
+      <br><span class="tiny">Próxima ventana: ${fv(x.ven)}</span></span><span class="tiny">›</span></div>`).join('') : '<div class="okmsg">Nada del calendario para hoy ni los próximos 2 días, y nada pendiente de la última semana.</div>'}${filasAp.length ? '<div class="tiny" style="margin-top:6px">Mantén apretada una aplicación para darle visto bueno o quitarla si no se va a aplicar.</div>' : ''}`;
   const fenCard = $('#hoy_fen'); if (fenCard) {
     const bloque = (tit, g) => { if (!g.length) return ''; g.sort((a, b) => b.gd - a.gd); const ad = g[0], at = g[g.length - 1], prom = g.reduce((t, x) => t + x.gd, 0) / g.length;
       const cult = Object.entries(g.reduce((o, x) => (o[x.l.cultivo] = (o[x.l.cultivo] || 0) + 1, o), {})).sort((a, b) => b[1] - a[1])[0][0], ref = g.find(x => x.l.cultivo === cult), ep = M.etapa(prom, ref.l, CFG, ref.gdProm, hoy, 0);

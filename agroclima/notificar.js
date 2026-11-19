@@ -130,7 +130,8 @@ async function main() {
   if (hel.length) lin.push(`❄️ Riesgo de helada: ${hel.map(d => `${dS(d.fecha)} (${r1(d.tmin)} °C)`).join(', ')}`);
   // 3) tizón
   const papas = res.filter(r => r.l.cultivo === 'papa'), apl = papas.filter(r => r.dec === 'APLICAR'), nV = papas.filter(r => r.dec === 'VIGILAR').length;
-  if (papas.length) lin.push(`🍂 Tizón: ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')}` : 'ningún lote en APLICAR'}${nV ? ` · vigilar ${nV}` : ''}`);
+  const condTxt = vHoyL.length ? `hay condiciones hoy ${vHoyL.map(hh).join(', ')}` : `no hay condiciones hoy${vSig ? `, próxima ventana ${dS(vSig.ini.slice(0, 10))} ${hh(vSig)}` : ''}`;
+  if (papas.length) lin.push(`🍂 Tizón: ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')} (${condTxt})` : 'ningún lote en APLICAR'}${nV ? ` · vigilar ${nV}` : ''}`);
   // 4) aplicaciones del calendario por número de control
   if (aplicar.length) {
     const pr = e => String(e.prod).split(/ \(| o /)[0];
