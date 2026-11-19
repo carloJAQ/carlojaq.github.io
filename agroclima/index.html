@@ -129,6 +129,7 @@ img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;fle
 .ftab.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
 .tabP{display:none}.tabP.vis{display:block}.tabTit{display:none}
 .chipF{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer;background:var(--card)}
+.chipSel.on{background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important}
 .chipF.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .lt-i{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
 .lt-i[data-ltapp],.lt-i[data-ltev]{cursor:pointer}
@@ -3677,6 +3678,64 @@ function vAppForm(id, loteId, ven, pre) {
 }
 
 
+
+// =====================================================================
+// HISTORIAL DE CONDICIONES PARA APLICAR (días aptos, por solicitud)
+// =====================================================================
+function diasAptos(h, desde, hasta) {
+  const A = CFG.aplicacion, out = {};
+  for (let i = 0; i < h.time.length; i++) {
+    const f = h.time[i].slice(0, 10); if (f < desde || f > hasta) continue;
+    const d = out[f] || (out[f] = { f, horas: 0, ventanas: [], pp: 0, vmax: 0, mot: { viento: 0, lluvia: 0, temp: 0 }, cur: null });
+    d.pp += h.pp[i] || 0; const hr = +h.time[i].slice(11, 13);
+    const e = M.evalHora(h, i, CFG), enH = hr >= A.horaIni && hr < A.horaFin;
+    if (enH) d.vmax = Math.max(d.vmax, h.ws[i] || 0);
+    if (e.ok) { d.horas++; if (!d.cur) d.cur = { ini: hr, fin: hr }; d.cur.fin = hr; }
+    else { if (enH) e.motivos.forEach(m => { if (m.startsWith('viento')) d.mot.viento++; else if (m.startsWith('lluvia')) d.mot.lluvia++; else if (m.startsWith('temp')) d.mot.temp++; }); if (d.cur) { if (d.cur.fin - d.cur.ini + 1 >= A.horasMinVentana) d.ventanas.push(d.cur); d.cur = null; } }
+  }
+  return Object.values(out).map(d => { if (d.cur && d.cur.fin - d.cur.ini + 1 >= A.horasMinVentana) d.ventanas.push(d.cur); delete d.cur; d.apto = d.ventanas.length > 0; const m = Object.entries(d.mot).sort((a, b) => b[1] - a[1])[0]; d.motivo = d.apto ? '' : m[1] ? { viento: `viento ≥${A.vientoMax} km/h`, lluvia: 'lluvia', temp: 'temperatura' }[m[0]] : 'sin horas suficientes'; return d; }).sort((a, b) => a.f < b.f ? -1 : 1);
+}
+async function vHistorial() {
+  const ls = DB.lotes.filter(l => l.activo !== false && loteCompleto(l)).sort((a, b) => (a.cultivo === 'papa' ? 0 : 1) - (b.cultivo === 'papa' ? 0 : 1) || String(a.numero_control || a.nombre).localeCompare(String(b.numero_control || b.nombre)));
+  if (!ls.length) { V().innerHTML = '<div class="card vacio">No hay solicitudes completas.</div>'; return; }
+  const st = vHistorial._s || (vHistorial._s = { id: ls[0].id, desde: null, hasta: hoyStr() });
+  const l = ls.find(x => x.id === st.id) || ls[0], hoy = hoyStr(); if (!st.desde || st.desde < l.fecha_plantacion) st.desde = l.fecha_plantacion;
+  V().innerHTML = `<div class="card noRes"><label>Solicitud</label><select id="h_l">${ls.map(x => `<option value="${x.id}" ${x.id === l.id ? 'selected' : ''}>${x.numero_control ? 'N° ' + esc(x.numero_control) + ' · ' : ''}${esc(x.nombre)} (${CULTIVOS[x.cultivo] || x.cultivo})</option>`).join('')}</select>
+    <div class="grid2"><div><label>Desde</label><input type="date" id="h_d" value="${st.desde}" min="${l.fecha_plantacion}" max="${hoy}"></div><div><label>Hasta</label><input type="date" id="h_h" value="${st.hasta > hoy ? hoy : st.hasta}" min="${l.fecha_plantacion}" max="${hoy}"></div></div>
+    <div class="row wrap" style="gap:6px;margin-top:6px"><button class="btn sec chipSel" data-hr="7">Últimos 7 días</button><button class="btn sec chipSel" data-hr="30">Últimos 30</button><button class="btn sec chipSel" data-hr="0">Desde plantación</button></div></div>
+    <div id="h_res"><div class="card vacio"><span class="spin"></span> Revisando el clima hora por hora…</div></div>`;
+  $('#h_l').onchange = e => { st.id = e.target.value; st.desde = null; vHistorial(); };
+  $('#h_d').onchange = e => { st.desde = e.target.value; vHistorial(); };
+  $('#h_h').onchange = e => { st.hasta = e.target.value; vHistorial(); };
+  V().querySelectorAll('[data-hr]').forEach(b => b.onclick = () => { const n = +b.dataset.hr; st.hasta = hoy; st.desde = n ? M.sumarDias(hoy, -n + 1) : l.fecha_plantacion; vHistorial(); });
+  let c; try { c = await climaLote(l, false); } catch (e) { $('#h_res').innerHTML = `<div class="error">${esc(e.message)}</div>`; return; }
+  const ds = diasAptos(c.h, st.desde, st.hasta > hoy ? hoy : st.hasta), A = CFG.aplicacion;
+  const apt = ds.filter(d => d.apto), hT = ds.reduce((t, d) => t + d.horas, 0);
+  const vt = d => d.ventanas.map(v => `${pad(v.ini)}–${pad(v.fin + 1)} h`).join(', ');
+  const motC = {}; ds.filter(d => !d.apto).forEach(d => motC[d.motivo] = (motC[d.motivo] || 0) + 1);
+  let h = `<div class="card"><h2>Condiciones para aplicar</h2><div class="small muted">${esc(l.nombre)}${l.numero_control ? ' · N° ' + esc(l.numero_control) : ''} · ${fFechaL(st.desde)} al ${fFechaL(ds.length ? ds[ds.length - 1].f : st.hasta)}</div>
+    <div class="grid3" style="margin-top:8px"><div class="kpi"><b>${apt.length}</b><span>días con condiciones</span></div><div class="kpi"><b>${ds.length - apt.length}</b><span>días sin condiciones</span></div><div class="kpi"><b>${hT}</b><span>horas aptas en total</span></div></div>
+    ${ds.length - apt.length ? `<div class="small" style="margin-top:6px">Días sin condiciones por: ${Object.entries(motC).map(([k, n]) => `${k} ${n}`).join(' · ')}.</div>` : ''}
+    <div style="margin-top:10px">${grafico(ds.map(d => ({ x: d.f, y: d.horas, col: d.apto ? null : '#bbb' })), { tipo: 'barra', unidad: 'h', titulo: 'Horas aptas para aplicar por día' })}</div>
+    <div class="tiny">Horas aptas por día (barras grises: día sin una ventana de al menos ${A.horasMinVentana} h seguidas).</div></div>`;
+  // atrasos de la solicitud
+  if (l.cultivo === 'papa') {
+    const ev = eventosLote(l), tot = diasAptos(c.h, l.fecha_plantacion, hoy), aptoEn = (a, b) => tot.filter(d => d.apto && d.f >= a && d.f <= b);
+    const pend = ev.filter(e => !e.app && e.fecha < hoy && e.fecha >= st.desde && e.fecha <= st.hasta);
+    const tarde = ev.filter(e => e.app && String(e.app.fecha).slice(0, 10) > e.fecha && e.fecha >= st.desde && e.fecha <= st.hasta);
+    if (pend.length || tarde.length) {
+      h += `<div class="card"><h2>Atrasos y días que se pudo aplicar</h2>`;
+      if (tarde.length) h += `<h3>Aplicadas con atraso</h3>` + tarde.map(e => { const fa = String(e.app.fecha).slice(0, 10), d = aptoEn(e.fecha, M.sumarDias(fa, -1)); return `<div class="vent" style="align-items:flex-start"><span class="small"><b>${esc(e.app.producto || e.prod)}</b> · calendario ${fFecha(e.fecha)}, aplicada ${fFecha(fa)} (${M.difDias(e.fecha, fa)} días después)<br><span class="tiny">${d.length ? `En ese tiempo hubo <b>${d.length} día${d.length > 1 ? 's' : ''} con condiciones</b>: ${d.map(x => fFecha(x.f) + ' ' + vt(x)).join('; ')}` : 'No hubo ningún día con condiciones en ese tiempo: el atraso se justifica por el clima.'}</span></span></div>`; }).join('');
+      if (pend.length) h += `<h3>Pendientes (sin registrar)</h3>` + pend.map(e => { const d = aptoEn(e.fecha, hoy); return `<div class="vent" style="align-items:flex-start"><span class="small"><b>${esc(e.prod)}</b> · calendario ${fFecha(e.fecha)} (${M.difDias(e.fecha, hoy)} días)<br><span class="tiny">${d.length ? `Desde esa fecha hubo <b>${d.length} día${d.length > 1 ? 's' : ''} con condiciones</b>: ${d.slice(0, 8).map(x => fFecha(x.f)).join(', ')}${d.length > 8 ? '…' : ''}` : 'No ha habido ningún día con condiciones desde esa fecha.'}</span></span></div>`; }).join('');
+      h += `</div>`;
+    }
+  }
+  h += `<div class="card"><h2>Día a día</h2><div class="scroll"><table class="tabla"><tr><th>Día</th><th>¿Se pudo?</th><th>Horas aptas</th><th>Lluvia</th><th>Viento máx</th></tr>
+    ${ds.slice().reverse().map(d => `<tr><td>${fFecha(d.f)}</td><td style="text-align:left">${d.apto ? '<b>Sí</b>' : 'No'}${d.apto ? '' : `<br><span class="tiny">${esc(d.motivo)}</span>`}</td><td style="text-align:left">${d.horas ? `${d.horas} h${d.ventanas.length ? `<br><span class="tiny">${vt(d)}</span>` : ''}` : '0'}</td><td>${n1(d.pp)} mm</td><td>${n0(d.vmax)} km/h</td></tr>`).join('')}</table></div>
+    ${porque('', fundLista([[`Una hora es apta cuando el viento es menor a ${A.vientoMax} km/h, no llueve (menos de ${A.lluviaMinima} mm) en las ${A.horasSinLluvia} horas siguientes, la temperatura está entre ${A.tempMin} y ${A.tempMax} °C y es entre las ${A.horaIni}:00 y las ${A.horaFin}:00. Un día tiene condiciones si hay al menos ${A.horasMinVentana} horas aptas seguidas.`, 'general'], ['Los datos son los registrados por Open-Meteo para el punto GPS de la solicitud (modelo meteorológico, no una estación en el potrero). Si anotaste lluvia de pluviómetro, cuenta en los totales diarios.', 'general'], ['Sirve como respaldo cuando una aplicación no se pudo hacer: muestra día por día si el clima lo permitía. Los criterios se cambian en Ajustes.', 'general']]))}</div>`;
+  $('#h_res').innerHTML = h;
+}
+
 // =====================================================================
 // MENSAJES MANUALES (pop-up a todos los teléfonos). Tabla ac_mensajes; los envía GitHub Actions cada 15 min.
 // =====================================================================
@@ -3831,7 +3890,7 @@ function enlazarFicha(l, A) {
   const enlazarLT = () => {
     const c = $('#ltCard'); if (!c) return;
     c.querySelectorAll('[data-ltf]').forEach(b => b.onclick = () => { htmlLinea._f = b.dataset.ltf; const t = document.createElement('div'); t.innerHTML = htmlLinea(l, A); c.replaceWith(t.firstElementChild); enlazarLT(); });
-    c.querySelectorAll('[data-ltapp]').forEach(e => e.onclick = () => ir(() => vAppForm(e.dataset.ltapp), 'Editar aplicación', true));
+    c.querySelectorAll('[data-ltapp]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } ir(() => vAppForm(e.dataset.ltapp), 'Editar aplicación', true); }; mantener(e, () => menuApp(e.dataset.ltapp, () => vLote(l.id))); });
     c.querySelectorAll('[data-ltev]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } registrarEvento(l, htmlLinea._ev[+e.dataset.ltev]); }; mantener(e, () => menuEvento(l, htmlLinea._ev[+e.dataset.ltev], () => vLote(l.id))); });
   };
   enlazarLT();
@@ -3862,9 +3921,9 @@ function htmlCiclo(l, A) {
   const rot = (k, t) => { const g = seq(k); if (!g.length) return ''; const rep = g.some((x, i) => i && x === g[i - 1]); return `<div class="small" style="margin-top:4px"><b>${t}:</b> ${g.map(esc).join(' → ')}${rep ? ' <b>▲ repite el mismo grupo seguido</b>' : ''}</div>`; };
   const tot = {}; apps.forEach(a => { const q = CAL.cantidadApp(a, DB.lotes); if (q == null) return; const k = a.producto + '|' + CAL.unidadBase(a.unidad || 'L/ha'); tot[k] = (tot[k] || 0) + q; });
   const nT = k => apps.filter(a => a.clase === k).length;
-  return `<div class="card" id="cicloCard"><h2>Aplicado (${apps.length})</h2>${lista || '<div class="tiny">Sin aplicaciones registradas.</div>'}</div>`;
+  return `<div class="card" id="cicloCard"><h2>Aplicado (${apps.length})</h2>${lista || '<div class="tiny">Sin aplicaciones registradas.</div>'}${apps.length ? '<div class="tiny" style="margin-top:6px">Mantén apretada una aplicación para corregir la fecha o la dosis, o borrarla.</div>' : ''}</div>`;
 }
-function enlazarCiclo() { V().querySelectorAll('[data-capp]').forEach(e => e.onclick = () => ir(() => vAppForm(e.dataset.capp), 'Editar aplicación', true)); }
+function enlazarCiclo() { V().querySelectorAll('[data-capp]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } ir(() => vAppForm(e.dataset.capp), 'Editar aplicación', true); }; mantener(e, () => { const lid = (DB.apps.find(x => x.id === e.dataset.capp) || {}).lote_id; menuApp(e.dataset.capp, () => vLote(lid)); }); }); }
 
 // ---------- Depuración (roguing) para el SAG: se guarda dentro de la solicitud (norma.depu) ----------
 const DEPU_C = [['fueraTipo', 'Fuera de tipo y otras variedades'], ['virosisGrave', 'Virosis grave'], ['virosisLeve', 'Virosis leve'], ['pieNegro', 'Pie negro (Pectobacterium)']];
@@ -4346,7 +4405,7 @@ const CALC_FN = {
 
 // ---------- Más ----------
 function vMas() {
-  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
+  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['hist', 'Historial de condiciones', 'Días en que se pudo aplicar y atrasos, por solicitud', () => ir(vHistorial, 'Historial de condiciones', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
   V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 14</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
@@ -5031,20 +5090,44 @@ function preEvento(l, e) {
   }
 }
 // Mantener apretada una aplicación del calendario: darle visto bueno (queda registrada como aplicada)
+// Selector rápido de fecha y dosis para el teléfono (botones + campo)
+function selFechaDosis(fechas, dosis, unidad, fIni, dIni) {
+  return `<div class="sub">Fecha de aplicación</div><div class="row wrap" style="gap:6px">${fechas.map(([f, t]) => `<button class="btn sec chipSel${f === fIni ? ' on' : ''}" data-sf="${f}" style="padding:6px 10px">${t}</button>`).join('')}</div>
+    <input type="date" id="me_f" value="${fIni}" max="${hoyStr()}" style="margin-top:6px">
+    <div class="sub" style="margin-top:10px">Dosis por hectárea</div>${dosis.length > 1 ? `<div class="row wrap" style="gap:6px">${dosis.map(([v, t]) => `<button class="btn sec chipSel${v === dIni ? ' on' : ''}" data-sd="${v}" style="padding:6px 10px">${t}</button>`).join('')}</div>` : ''}
+    <div class="row" style="gap:6px;margin-top:6px;align-items:center"><input type="number" inputmode="decimal" step="0.01" id="me_d" value="${dIni ?? ''}" style="flex:1"><span class="small">${esc(unidad || '')}</span></div>`;
+}
+function enlazarSel(ov) {
+  ov.querySelectorAll('[data-sf]').forEach(b => b.onclick = ev => { ev.stopPropagation(); ov.querySelector('#me_f').value = b.dataset.sf; ov.querySelectorAll('[data-sf]').forEach(x => x.classList.toggle('on', x === b)); });
+  ov.querySelectorAll('[data-sd]').forEach(b => b.onclick = ev => { ev.stopPropagation(); ov.querySelector('#me_d').value = b.dataset.sd; ov.querySelectorAll('[data-sd]').forEach(x => x.classList.toggle('on', x === b)); });
+  ov.querySelector('#me_f').oninput = () => ov.querySelectorAll('[data-sf]').forEach(x => x.classList.remove('on'));
+  ov.querySelector('#me_d').oninput = () => ov.querySelectorAll('[data-sd]').forEach(x => x.classList.remove('on'));
+}
+// Rango de dosis del calendario ("1,5-2 L/ha" → mín, medio, máx) en la unidad que usa el registro
+function rangoDosis(e, pre) {
+  const max = pre.dosis_ha; if (max == null) return [];
+  const m = String(e.dosis).replace(/(\d),(\d)/g, '$1.$2').match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+  const r = x => Math.round(x * 1000) / 1000, fmt = x => n2(x);
+  if (!m || +m[2] <= +m[1]) return [[r(max), fmt(max)]];
+  const lo = r(max * (+m[1]) / (+m[2])), mid = r((lo + max) / 2);
+  return [[lo, 'mín ' + fmt(lo)], [mid, 'medio ' + fmt(mid)], [r(max), 'máx ' + fmt(max)]];
+}
+// Mantener apretada una aplicación del calendario: darle visto bueno con fecha y dosis, o quitarla
 function menuEvento(l, e, despues) {
   if (!e || e.app) return;
-  const hoy = hoyStr(), ov = document.createElement('div'); ov.className = 'ovl';
-  ov.innerHTML = `<div class="card" style="max-width:360px;margin:22vh auto 0"><h2 style="margin-bottom:2px">${esc(e.prod)}</h2><div class="tiny" style="margin-bottom:10px">${esc(l.nombre)}${l.numero_control ? ' · N° ' + esc(l.numero_control) : ''}<br>Calendario: ${fFechaL(e.fecha)} · ${esc(e.dosis)}</div>
-    <button class="btn blk" data-m="hoy">✓ Aplicada hoy (visto bueno)</button>
-    ${e.fecha < hoy ? `<button class="btn sec blk" data-m="cal" style="margin-top:8px">✓ Aplicada el ${fFechaL(e.fecha)} (fecha del calendario)</button>` : ''}
-    <label style="margin-top:8px">Otra fecha</label><div class="row" style="gap:6px"><input type="date" id="me_f" value="${hoy}" max="${hoy}"><button class="btn sec" data-m="otra">✓</button></div>
-    <button class="btn sec blk" data-m="det" style="margin-top:8px">Registrar con detalle…</button>
+  const hoy = hoyStr(), ay = M.sumarDias(hoy, -1), pre = preEvento(l, e), rg = rangoDosis(e, pre);
+  const fechas = [[hoy, 'Hoy'], [ay, 'Ayer']].concat(e.fecha < ay ? [[e.fecha, 'Calendario ' + fFecha(e.fecha)]] : []);
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:380px;margin:6vh auto 0;max-height:88vh;overflow:auto"><h2 style="margin-bottom:2px">${esc(pre.producto || e.prod)}</h2><div class="tiny" style="margin-bottom:6px">${esc(l.nombre)}${l.numero_control ? ' · N° ' + esc(l.numero_control) : ''}<br>Calendario: ${fFechaL(e.fecha)} · ${esc(e.dosis)}</div>
+    ${selFechaDosis(fechas, rg, pre.unidad || 'L/ha', hoy, rg.length ? rg[0][0] : null)}
+    <button class="btn blk" data-m="ok" style="margin-top:12px">✓ Dar visto bueno</button>
+    <button class="btn sec blk" data-m="det" style="margin-top:8px">Registrar con más detalle…</button>
     <div class="sub" style="margin-top:12px">No se va a aplicar</div>
     <button class="btn peligro blk" data-m="q1">✕ Quitar de esta solicitud</button>
     <button class="btn peligro blk" data-m="qt" style="margin-top:8px">✕ Quitar de todas las solicitudes de papa</button>
     <div class="tiny" style="margin-top:4px">Se puede restaurar en Aplicaciones → Calendario → "Quitadas del calendario".</div>
     <button class="btn sec blk" data-m="x" style="margin-top:10px">Cancelar</button></div>`;
-  document.body.appendChild(ov);
+  document.body.appendChild(ov); enlazarSel(ov);
   ov.onclick = ev => {
     const b = ev.target.closest('[data-m]'); if (!b) { if (ev.target === ov) ov.remove(); return; }
     const m = b.dataset.m; if (m === 'x') return ov.remove();
@@ -5057,10 +5140,33 @@ function menuEvento(l, e, despues) {
       if (despues) despues(); else if (ir._act && ir._act.fn) ir._act.fn();
       return;
     }
-    const f = m === 'hoy' ? hoy : m === 'cal' ? e.fecha : $('#me_f').value; if (!f) return toast('Elige la fecha'); ov.remove();
-    const pre = preEvento(l, e);
-    guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { fecha: f, notas: `✓ Visto bueno (calendario La Pampa, ${e.ddp} DDP).` }));
-    toast('✓ ' + String(e.prod).split(/ \(| o /)[0] + ' aplicada');
+    const f = ov.querySelector('#me_f').value, d = numOrNull(ov.querySelector('#me_d').value);
+    if (!f) return toast('Elige la fecha'); if (f > hoy) return toast('La fecha no puede ser futura');
+    ov.remove();
+    guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { fecha: f, dosis_ha: d, notas: `✓ Visto bueno (calendario La Pampa, ${e.ddp} DDP).` }));
+    toast('✓ ' + String(pre.producto || e.prod).split(/ \(| o /)[0] + ' aplicada');
+    if (despues) despues(); else if (ir._act && ir._act.fn) ir._act.fn();
+  };
+}
+// Mantener apretada una aplicación ya registrada: corregir fecha y dosis rápido, o borrarla
+function menuApp(id, despues) {
+  const a = DB.apps.find(x => x.id === id); if (!a) return;
+  const hoy = hoyStr(), ay = M.sumarDias(hoy, -1), f0 = String(a.fecha).slice(0, 10);
+  const fechas = [[hoy, 'Hoy'], [ay, 'Ayer']].concat(f0 !== hoy && f0 !== ay ? [[f0, fFecha(f0)]] : []);
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:380px;margin:10vh auto 0;max-height:84vh;overflow:auto"><h2 style="margin-bottom:2px">${esc(a.producto || '')}</h2><div class="tiny" style="margin-bottom:6px">Registrada el ${fFechaL(f0)}${a.dosis_ha != null ? ' · ' + n1(a.dosis_ha) + ' ' + esc(a.unidad || '') : ''}</div>
+    ${selFechaDosis(fechas, [], a.unidad || 'L/ha', f0, a.dosis_ha)}
+    <button class="btn blk" data-m="ok" style="margin-top:12px">Guardar cambios</button>
+    <button class="btn sec blk" data-m="det" style="margin-top:8px">Abrir el registro completo…</button>
+    <button class="btn peligro blk" data-m="del" style="margin-top:8px">Borrar esta aplicación</button>
+    <button class="btn sec blk" data-m="x" style="margin-top:8px">Cancelar</button></div>`;
+  document.body.appendChild(ov); enlazarSel(ov);
+  ov.onclick = ev => {
+    const b = ev.target.closest('[data-m]'); if (!b) { if (ev.target === ov) ov.remove(); return; }
+    const m = b.dataset.m; if (m === 'x') return ov.remove();
+    if (m === 'det') { ov.remove(); return ir(() => vAppForm(id), 'Editar aplicación', true); }
+    if (m === 'del') { if (!confirm('¿Borrar esta aplicación? Vuelve a quedar pendiente en el calendario.')) return; ov.remove(); borrarRegistro('apps', id); toast('Aplicación borrada'); }
+    else { const f = ov.querySelector('#me_f').value; if (!f || f > hoy) return toast('Revisa la fecha'); ov.remove(); guardarRegistro('apps', Object.assign(clon(a), { fecha: f, dosis_ha: numOrNull(ov.querySelector('#me_d').value) })); toast('Aplicación corregida'); }
     if (despues) despues(); else if (ir._act && ir._act.fn) ir._act.fn();
   };
 }
@@ -5086,7 +5192,7 @@ function darPorHechas(l) {
     if (b.dataset.x === 'ninguna') return cb.forEach(c => c.checked = false);
     if (b.dataset.x === 'no') return ov.remove();
     const sel = cb.filter(c => c.checked).map(c => S.atras[+c.dataset.i]); ov.remove();
-    sel.forEach(e => { const pre = preEvento(l, e); guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { fecha: e.fecha, notas: 'Dada por hecha desde el calendario La Pampa (' + e.ddp + ' DDP).' })); });
+    sel.forEach(e => { const pre = preEvento(l, e), rg = rangoDosis(e, pre); guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, pre, { dosis_ha: rg.length ? rg[0][0] : pre.dosis_ha, fecha: e.fecha, notas: 'Dada por hecha desde el calendario La Pampa (' + e.ddp + ' DDP).' })); });
     toast(`${sel.length} aplicaciones registradas`); vLote(l.id);
   };
 }
