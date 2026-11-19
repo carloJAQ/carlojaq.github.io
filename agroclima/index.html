@@ -2325,7 +2325,8 @@ if (typeof module !== 'undefined') module.exports = G;
     insect: [[15, 'Azyra', '500 cc/ha', 200], [29, 'Engeo', '200 cc/ha', 300], [43, 'Chess', '200 g/ha', 400], [57, 'Punto', '60 g/ha', 400], [71, 'Chess', '250 g/ha', 400], [85, 'Azyra', '500 cc/ha', 200], [99, 'Turbine', '150 g/hL', 200]],
     aceite: [[15, 200, 1], [22, 200, 1], [29, 300, 1], [36, 350, 1.25], [43, 400, 2], [50, 400, 2], [57, 400, 2], [64, 500, 2.5], [71, 500, 2.5], [78, 500, 2.5], [85, 500, 2.5], [92, 500, 2.5], [99, 500, 2.5]],
     fungi: [[45, 'Moxan', '2 L/ha'], [52, 'Bravo (o mancozeb 2 kg/ha)', '1,5 L/ha'], [59, 'Revus Top', '0,8 kg/ha'], [66, 'Infinito', '2,5 L/ha'], [73, 'Infinito', '2,5 L/ha'], [80, 'Revus Top', '0,8 kg/ha'], [87, 'Bravo', '1,5 L/ha'], [94, 'Bravo', '1,5 L/ha']],
-    surco: [['Azoxistrobina', '2 L/ha'], ['Emesto Fusion', '1,5-2 L/ha'], ['Elatus', '3 L/ha']]
+    // Al surco en la plantación, como se aplica en INIA La Pampa (indicado por Carlos, nov-2026)
+    surco: [['Priori (azoxistrobina)', '1 L/ha', 'Rizoctonia, al surco'], ['Emesto Fusion', '2 L/ha', 'Rizoctonia, al surco'], ['Excelto (tiametoxam)', '1,6 L/ha', 'Insectos de suelo y pulgones, al surco']]
   };
 
   const pa = p => p.split(/ o | \+ |, |\(| \/ /).map(x => x.replace(/\)|antes|temporada 2024|y otros/g, '').trim().replace(/^o /, '')).filter(Boolean);
@@ -2383,7 +2384,7 @@ if (typeof module !== 'undefined') module.exports = G;
     sec: [
       { h: 'Insecticidas (cada 14 días)', p: CAL_LP.insect.map(([d, p, dos, ag]) => `${d} DDP: ${p} (${(grupoDe(p) || '?').replace('?', 'grupo por verificar')}), ${dos}, ${ag} L de agua/ha.`) },
       { h: 'Aceite mineral', p: [`De 15 a 99 DDP, cada 7 días, subiendo el agua de 200 a 500 L/ha y el aceite de 1 a 2,5 L/ha a medida que crece el follaje.`, 'Notas del calendario: pasar a cada 5 días, porque la dosis en uso era 4 veces la de etiqueta y tapa los estomas, con alto riesgo de fitotoxicidad.'] },
-      { h: 'Al surco', p: CAL_LP.surco.map(([p, d]) => `${p}: ${d}.`).concat(['Recomendación del calendario: azoxistrobina + Emesto Fusion (dosis de Priori, 1 L/ha).']) },
+      { h: 'Al surco', p: CAL_LP.surco.map(([p, d]) => `${p}: ${d}.`).concat(['Así se aplica en INIA La Pampa desde la temporada 2026-2027: los tres productos juntos al surco, en la plantación.']) },
       { h: 'Reglas del calendario', p: ['Si hay tizón tardío: Forum + Infinito, dos veces seguidas cada 5 días.', 'Si hay tizón de flor asociado a Botrytis: sumar Bravo o mancozeb al fungicida.'] },
       { h: 'Análisis técnico', p: ['Infinito va dos veces seguidas (66 y 73 DDP): repite los grupos 43 + 28. FRAG pide alternancia estricta, así que conviene intercalar otro grupo entre ambas, por ejemplo 21 (cyazofamid) o 45 + 40.', 'Ante un brote, Forum + Infinito junta tres modos de acción (40, 43 y 28), pero FRAG advierte que no conviene "perseguir" la epidemia con aplicaciones erradicantes: lo correcto es proteger antes, guiado por la alerta.', 'Al final se repite Bravo (M5): como multisitio, repetirlo no genera resistencia, pero solo protege. Si la alerta marca riesgo alto en esa etapa, conviene agregar un grupo con acción en el tubérculo.', 'Los insecticidas cambian de grupo en cada aplicación (28, 4A + 3A, 9B, 4A, 9B, 28 y 29): bien rotados. Punto (imidacloprid, 4A) repite el grupo de Engeo dos aplicaciones después, no seguido. Cada 14 días es un intervalo largo para un semillero; el aceite cada 5-7 días cubre el PVY entre medio.'] }
     ],
@@ -2646,7 +2647,7 @@ function tipoDe(obj, prod) {
 function eventosPrograma(prog) {
   const ev = [], add = (ddp, prod, obj, dosis, etapa, por, tipo) => ev.push({ ddp, prod, obj, dosis, etapa: etapa || '', por: por || [], tipo: tipo || tipoDe(obj, prod) });
   if (prog === 'lp') {
-    G.CAL_LP.surco.forEach(([p, d]) => add(0, p, 'Rizoctonia, al surco', d, 'Plantación'));
+    G.CAL_LP.surco.forEach(([p, d, o]) => add(0, p, o || 'Rizoctonia, al surco', d, 'Plantación'));
     G.CAL_LP.fungi.forEach(([d, p, dos]) => add(d, p, 'Tizón tardío', dos, ''));
     G.CAL_LP.insect.forEach(([d, p, dos, ag]) => add(d, p, 'Pulgones', `${dos} en ${ag} L de agua/ha`, ''));
     G.CAL_LP.aceite.forEach(([d, ag, l]) => add(d, 'Aceite mineral', 'Pulgones (barrera contra virus no persistentes)', `${String(l).replace('.', ',')} L/ha en ${ag} L de agua`, '', [], 'insecticida'));
@@ -3679,6 +3680,53 @@ function vAppForm(id, loteId, ven, pre) {
 
 
 
+
+// =====================================================================
+// IMPORTAR APLICACIONES DESDE EXCEL (planilla aplicaciones_papa_INIA_La_Pampa.xlsx)
+// =====================================================================
+function vImportarApps() {
+  V().innerHTML = `<div class="card"><h2>Importar aplicaciones</h2>
+    <div class="small">Sube la planilla de aplicaciones (Excel). Se cargan las filas con <b>¿Se aplicó? = SI</b>, con la fecha de aplicación (o la del calendario si está vacía) y la dosis de la fila. Las filas "REGISTRADA", "NO" o vacías no se cargan.</div>
+    <input type="file" id="ia_f" accept=".xlsx" style="margin-top:10px"><div id="ia_res" style="margin-top:10px"></div></div>`;
+  $('#ia_f').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; $('#ia_res').innerHTML = '<span class="spin"></span> Leyendo…';
+    let filas; try { filas = await XL.leer(f); } catch (er) { $('#ia_res').innerHTML = `<div class="error">${esc(er.message)}</div>`; return; }
+    const nz = v => CAL.norm(v).replace(/[¿?°º.]/g, '').trim();
+    const hi = filas.findIndex(r => r.some(c => /control/.test(nz(c))) && r.some(c => nz(c) === 'producto'));
+    if (hi < 0) { $('#ia_res').innerHTML = '<div class="error">No encontré las columnas "N° control" y "Producto".</div>'; return; }
+    const cab = filas[hi].map(nz), col = re => cab.findIndex(c => re.test(c));
+    const C = { ctl: col(/control/), pot: col(/^potrero/), prod: col(/^producto$/), tipo: col(/^tipo/), grupo: col(/^grupo/), dosis: col(/^dosis/), uni: col(/^unidad/), agua: col(/agua/), si: col(/se aplico|aplicada|aplico/), fa: col(/fecha de aplic/), fc: col(/fecha cal/), notas: col(/^notas/) };
+    const v = (r, k) => C[k] >= 0 ? String(r[C[k]] ?? '').trim() : '';
+    const num = x => { const n = parseFloat(String(x).replace(',', '.')); return isNaN(n) ? null : n; };
+    const ok = [], ya = [], mal = [], cor = [];
+    filas.slice(hi + 1).forEach((r, i) => {
+      const si = nz(v(r, 'si')); if (!(si === 'si' || si === 'x')) return;
+      const fila = hi + 2 + i, ctl = v(r, 'ctl'), prod = v(r, 'prod');
+      const cands = DB.lotes.filter(l => l.activo !== false && String(l.numero_control || '').trim() === ctl);
+      const l = cands.length > 1 ? (cands.find(x => x.cultivo === 'papa' && (!v(r, 'pot') || CAL.norm(x.nombre).startsWith(CAL.norm(v(r, 'pot'))))) || cands[0]) : cands[0];
+      const fecha = XL.fecha(v(r, 'fa')) || XL.fecha(v(r, 'fc'));
+      if (!l) return mal.push(`Fila ${fila}: no encontré la solicitud N° ${esc(ctl || '—')}`);
+      if (!prod) return mal.push(`Fila ${fila} (N° ${esc(ctl)}): falta el producto`);
+      if (!fecha) return mal.push(`Fila ${fila} (N° ${esc(ctl)}, ${esc(prod)}): falta la fecha`);
+      if (fecha > hoyStr()) return mal.push(`Fila ${fila} (N° ${esc(ctl)}, ${esc(prod)}): la fecha ${fFechaL(fecha)} es futura`);
+      const ex = DB.apps.find(a => a.lote_id === l.id && String(a.fecha).slice(0, 10) === fecha && CAL.mismoNombre(a.producto, prod));
+      if (ex) { const d = num(v(r, 'dosis')); if (d != null && Math.abs((+ex.dosis_ha || 0) - d) > 0.0001) cor.push({ ex, d, txt: `N° ${esc(ctl)} · ${esc(ex.producto)} · ${fFecha(fecha)}: ${ex.dosis_ha != null ? n2(+ex.dosis_ha) : '—'} → <b>${n2(d)}</b> ${esc(ex.unidad || '')}` }); else ya.push(`N° ${esc(ctl)} · ${esc(prod)} · ${fFecha(fecha)}`); return; }
+      const bp = DB.prods.find(p => CAL.esProducto(prod, p)), tipo = CAL.norm(v(r, 'tipo'));
+      const uni = v(r, 'uni') || (bp ? CAL.unidadBase(bp.stock_unidad || bp.unidad) + '/ha' : 'L/ha');
+      ok.push({ id: uid(), lote_id: l.id, fecha, producto: bp ? bp.nombre : prod, clase: ['fungicida', 'insecticida', 'herbicida', 'desecante', 'fertilizante', 'foliar', 'otro'].includes(tipo) ? tipo : (bp ? bp.clase : 'otro'), grupo: v(r, 'grupo') || (bp ? bp.grupo || '' : ''), ingrediente: bp ? bp.ingrediente || '' : '', dosis_ha: num(v(r, 'dosis')), unidad: /\/ha|100 l/i.test(uni) ? uni.replace(/^(\w+)\/ha$/i, (m, u) => (/kg/i.test(u) ? 'kg' : 'L') + '/ha') : uni + '/ha', volumen_ha: num(v(r, 'agua')), superficie_ha: +l.superficie_ha || null, carencia_dias: bp ? bp.carencia_dias ?? null : null, notas: ['Importada desde planilla.', v(r, 'notas')].filter(Boolean).join(' '), created_at: new Date().toISOString(), _l: l });
+    });
+    const porL = {}; ok.forEach(a => (porL[a._l.numero_control + ' · ' + a._l.nombre] = (porL[a._l.numero_control + ' · ' + a._l.nombre] || 0) + 1));
+    const tot = ok.length + cor.length;
+    $('#ia_res').innerHTML = `<div class="grid3"><div class="kpi"><b>${ok.length}</b><span>para cargar${cor.length ? ` + ${cor.length} a corregir` : ''}</span></div><div class="kpi"><b>${ya.length}</b><span>ya estaban</span></div><div class="kpi"><b>${mal.length}</b><span>con problemas</span></div></div>
+      ${ok.length ? `<div class="small" style="margin-top:8px">${Object.entries(porL).map(([k, n]) => `N° ${esc(k)}: <b>${n}</b>`).join('<br>')}</div>` : ''}
+      ${cor.length ? `<details style="margin-top:8px" open><summary class="small">Dosis a corregir en lo ya registrado (${cor.length})</summary><div class="tiny">${cor.map(c => c.txt).join('<br>')}</div></details>` : ''}
+      ${tot ? `<button class="btn blk" id="ia_ok" style="margin-top:10px">Cargar ${ok.length}${cor.length ? ` y corregir ${cor.length}` : ''}</button>` : '<div class="tiny" style="margin-top:8px">No hay filas nuevas con "SI" para cargar.</div>'}
+      ${mal.length ? `<details style="margin-top:8px" open><summary class="small">Filas con problemas (${mal.length})</summary><div class="tiny">${mal.join('<br>')}</div></details>` : ''}
+      ${ya.length ? `<details style="margin-top:6px"><summary class="small">Ya estaban registradas (${ya.length})</summary><div class="tiny">${ya.join('<br>')}</div></details>` : ''}`;
+    if ($('#ia_ok')) $('#ia_ok').onclick = () => { ok.forEach(a => { delete a._l; guardarRegistro('apps', a); }); cor.forEach(c => guardarRegistro('apps', Object.assign(clon(c.ex), { dosis_ha: c.d }))); toast(`${ok.length} cargadas${cor.length ? `, ${cor.length} corregidas` : ''}`); $('#ia_res').innerHTML = `<div class="okmsg">Listo: ${ok.length} aplicaciones cargadas${cor.length ? ` y ${cor.length} corregidas` : ''}. Ya aparecen en el Resumen de cada solicitud y se descuentan de la bodega.</div>`; };
+  };
+}
+
 // =====================================================================
 // HISTORIAL DE CONDICIONES PARA APLICAR (días aptos, por solicitud)
 // =====================================================================
@@ -4405,7 +4453,7 @@ const CALC_FN = {
 
 // ---------- Más ----------
 function vMas() {
-  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['hist', 'Historial de condiciones', 'Días en que se pudo aplicar y atrasos, por solicitud', () => ir(vHistorial, 'Historial de condiciones', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
+  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['impA', 'Importar aplicaciones (Excel)', 'Cargar las aplicaciones hechas desde la planilla', () => ir(vImportarApps, 'Importar aplicaciones', true)], ['hist', 'Historial de condiciones', 'Días en que se pudo aplicar y atrasos, por solicitud', () => ir(vHistorial, 'Historial de condiciones', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
   V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 14</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
