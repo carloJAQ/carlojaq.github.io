@@ -1427,14 +1427,15 @@ const M = (() => {
   const afiPuntos = ini => { const y = +ini.slice(0, 4); return AFI.prom.map(([md, g]) => [difDias(ini, `${+md.slice(0, 2) < 7 ? y + 1 : y}-${md}`), g]); };
   const afiProm = f => { const ini = afiInicio(f), x = difDias(ini, f), P = afiPuntos(ini); for (let i = 1; i < P.length; i++) if (x <= P[i][0]) { const [x0, g0] = P[i - 1], [x1, g1] = P[i]; return g0 + (g1 - g0) * (x - x0) / (x1 - x0); } return P[P.length - 1][1]; };
   const afiFechaProm = (g, ini) => { const P = afiPuntos(ini); for (let i = 1; i < P.length; i++) if (g <= P[i][1]) { const [x0, g0] = P[i - 1], [x1, g1] = P[i]; return sumarDias(ini, Math.round(x0 + (x1 - x0) * (g - g0) / (g1 - g0))); } return null; };
-  function afidos(h, hoy) {
+  function afidos(h, hoy, gd0) {
     const ini = afiInicio(hoy), D = {};
     h.time.forEach((t, i) => {
       const f = t.slice(0, 10); if (f < ini) return; const T = h.t[i]; if (T == null) return;
       const d = D[f] || (D[f] = { f, s: 0, n: 0, iv: 0, horas: 0, hs: [] }), hr = +t.slice(11, 13);
       d.s += T; d.n++; const v = afiHora(T, h.ws ? h.ws[i] : null, h.pp ? h.pp[i] : 0, hr); d.iv += v; if (v >= 0.5) { d.horas++; d.hs.push(hr); }
     });
-    let acc = 0;
+    const ks = Object.keys(D).sort(), f0 = ks.length ? ks[0] : ini;
+    let acc = f0 > ini ? (gd0 != null ? gd0 : afiProm(sumarDias(f0, -1))) : 0;
     const dias = Object.values(D).filter(d => d.n >= 18).sort((a, b) => a.f < b.f ? -1 : 1).map(d => { const g = Math.max(0, d.s / d.n - AFI.base); acc += g; return { f: d.f, gdDia: r1(g), gd: Math.round(acc), iv: r1(d.iv), horas: d.horas, hs: d.hs, fut: d.f > hoy }; });
     if (!dias.length) return null;
     const dh = dias.filter(d => d.f <= hoy).pop() || dias[0], gd = dh.gd;
@@ -3815,13 +3816,30 @@ const AFI_REC = [
   'Temporada de vuelos terminada.'];
 async function datosAfidos(forzar) {
   const ref = DB.lotes.find(l => l.activo !== false && l.cultivo === 'papa' && l.lat != null) || DB.lotes.find(l => l.lat != null);
-  const lat = ref ? +ref.lat : -40.91, lon = ref ? +ref.lon : -73.16, hoy = hoyStr();
-  const firma = `a1,${lat.toFixed(2)},${lon.toFixed(2)},${hoy}`, c = LS.get('ac_afi', null);
+  const lat = ref ? +(+ref.lat).toFixed(3) : -40.91, lon = ref ? +(+ref.lon).toFixed(3) : -73.16, hoy = hoyStr(), ini = M.afiInicio(hoy);
+  const firma = `a2,${lat.toFixed(2)},${lon.toFixed(2)},${hoy}`, c = LS.get('ac_afi', null);
   if (!forzar && c && c.firma === firma && Date.now() - c.ts < 3 * 3600e3) return c.R;
-  const h = await traerClima(lat, lon, M.afiInicio(hoy), 7);
-  const R = M.afidos(h, hoy); if (!R) throw new Error('Sin datos de clima para los pulgones.');
-  R.lugar = ref ? String(ref.nombre).split(' · ')[0] : 'INIA La Pampa';
-  LS.set('ac_afi', { firma, ts: Date.now(), R }); return R;
+  const base = `latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,wind_speed_10m&timezone=America%2FSantiago&wind_speed_unit=kmh`;
+  const traer = async u => { for (let k = 0; k < 3; k++) { try { return await getJSON(u); } catch (e) { if (k === 2) throw e; await new Promise(r => setTimeout(r, 1500 * (k + 1))); } } };
+  const serie = j => ({ time: j.hourly.time, t: j.hourly.temperature_2m, pp: j.hourly.precipitation, ws: j.hourly.wind_speed_10m });
+  try {
+    const F = serie(await traer(`https://api.open-meteo.com/v1/forecast?${base}&past_days=92&forecast_days=7`));
+    // Lo antiguo (1 de julio hasta hace 92 días) no cambia: se guarda una vez por temporada.
+    const kA = `ac_afi_ar_${ini}_${lat.toFixed(2)},${lon.toFixed(2)}`, fin = M.sumarDias(hoy, -91);
+    let A = LS.get(kA, null), aviso = '';
+    if (fin > ini && (!A || A.fin < fin)) {
+      try { const j = await traer(`https://archive-api.open-meteo.com/v1/archive?${base}&start_date=${ini}&end_date=${fin}`); A = Object.assign(serie(j), { fin }); LS.set(kA, A); }
+      catch (e) { if (!A) aviso = 'No se pudo bajar el clima de julio a agosto; esos días se estimaron con el promedio de La Pampa.'; }
+    }
+    let h = F;
+    if (A) { const set = new Set(F.time), H = { time: [], t: [], pp: [], ws: [] }; A.time.forEach((t, i) => { if (set.has(t) || A.t[i] == null) return; H.time.push(t); H.t.push(A.t[i]); H.pp.push(A.pp[i]); H.ws.push(A.ws[i]); }); F.time.forEach((t, i) => { H.time.push(t); H.t.push(F.t[i]); H.pp.push(F.pp[i]); H.ws.push(F.ws[i]); }); h = H; }
+    const R = M.afidos(h, hoy); if (!R) throw new Error('sin datos');
+    R.lugar = ref ? String(ref.nombre).split(' · ')[0] : 'INIA La Pampa'; R.aviso = aviso;
+    LS.set('ac_afi', { firma, ts: Date.now(), R }); return R;
+  } catch (e) {
+    if (c && c.R) { const R = Object.assign({}, c.R, { aviso: `Sin conexión con el servicio de clima (${e.message}). Se muestra el último cálculo, del ${new Date(c.ts).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.` }); return R; }
+    throw new Error('no hay conexión con el servicio de clima (Open-Meteo). Revisa la señal y toca Actualizar.');
+  }
 }
 const afiCls = n => n >= 3 ? 'error' : n >= 1 ? 'aviso' : 'okmsg';
 const afiHoras = d => { if (!d || !d.hs.length) return 'sin horas aptas'; const t = []; let a = d.hs[0], b = a; d.hs.slice(1).concat([99]).forEach(x => { if (x === b + 1) b = x; else { t.push(`${pad(a)}–${pad(b + 1)} h`); a = b = x; } }); return `${d.horas} h (${t.join(', ')})`; };
@@ -3838,10 +3856,10 @@ function htmlAfidos(R, compacto) {
   const alerta = R.sig && pr != null && pr <= 7 ? `<div class="aviso"><b>Alerta:</b> pasa a <b>${esc(R.sig.n)}</b> ${pr <= 0 ? 'hoy' : `en ${pr} día${pr > 1 ? 's' : ''} (aprox. ${fFechaL(R.fechaSig)})`} al llegar a ${R.sig.gd} GD.</div>` : '';
   const cab = `<div class="${afiCls(f.nivel)}" style="margin-top:8px"><b style="font-size:16px">${esc(f.n)}</b><br>${esc(f.txt)}</div>${alerta}
     <div class="grid3" style="margin-top:8px"><div class="kpi"><b>${n0(R.gd)}</b><span>GD acumulados (base 4 °C desde 1 jul)</span></div><div class="kpi"><b>${R.adelanto == null ? '—' : (R.adelanto > 0 ? '+' : '') + R.adelanto}</b><span>días vs. año normal (${n0(R.prom)} GD)</span></div><div class="kpi"><b>${R.hoy.horas}</b><span>horas aptas de vuelo hoy</span></div></div>`;
-  if (compacto) return `<h2>Vuelo de pulgones</h2>${cab}<div class="small" style="margin-top:6px">${R.sig ? `Próxima fase: <b>${esc(R.sig.n)}</b> con ${R.sig.gd} GD${R.fechaSig ? `, aprox. ${fFechaL(R.fechaSig)}` : ''}. ` : ''}Temporada ${afiAdel(R)}.</div><button class="btn sec blk" data-afi="1" style="margin-top:8px">Ver curva de vuelo</button>`;
+  if (compacto) return `<h2>Vuelo de pulgones</h2>${R.aviso ? `<div class="tiny" style="color:var(--bad)">${esc(R.aviso)}</div>` : ''}${cab}<div class="small" style="margin-top:6px">${R.sig ? `Próxima fase: <b>${esc(R.sig.n)}</b> con ${R.sig.gd} GD${R.fechaSig ? `, aprox. ${fFechaL(R.fechaSig)}` : ''}. ` : ''}Temporada ${afiAdel(R)}.</div><button class="btn sec blk" data-afi="1" style="margin-top:8px">Ver curva de vuelo</button>`;
   const ds = R.dias.filter(d => d.f >= M.sumarDias(hoy, -20)), cD = (d) => d.iv >= 5 ? (d.fut ? '#e89a9a' : '#c62828') : d.iv >= 2 ? (d.fut ? '#efcf73' : '#d39a00') : (d.fut ? '#a9c99c' : '#5e8f4e');
   const pk = R.dias.filter(d => d.f >= M.sumarDias(hoy, 1)).sort((a, b) => b.iv - a.iv)[0];
-  return `<h2>Vuelo de pulgones (áfidos)</h2><div class="tiny">Clima de ${esc(R.lugar)}. Vale para toda la zona.</div>${cab}
+  return `<h2>Vuelo de pulgones (áfidos)</h2><div class="tiny">Clima de ${esc(R.lugar)}. Vale para toda la zona.</div>${R.aviso ? `<div class="aviso">${esc(R.aviso)}</div>` : ''}${cab}
     <div class="small" style="margin-top:6px">${R.sig ? `Próxima fase: <b>${esc(R.sig.n)}</b> con ${R.sig.gd} GD${R.fechaSig ? `, aprox. <b>${fFechaL(R.fechaSig)}</b>` : ''} (suma ${n1(R.ritmo)} GD por día). ` : ''}Temporada ${afiAdel(R)}.</div>
     <h3>Fases de la temporada (grados día)</h3>${afiBarra(R)}
     <h3>Grados día acumulados de pulgones</h3>
@@ -3861,7 +3879,7 @@ function htmlAfidos(R, compacto) {
 async function pintarAfidos(sel, compacto) {
   const el = $(sel); if (!el) return;
   try { const R = await datosAfidos(false); el.innerHTML = htmlAfidos(R, compacto); const b = el.querySelector('[data-afi]'); if (b) b.onclick = () => ir(vAfidos, 'Vuelo de pulgones', true); }
-  catch (e) { el.innerHTML = `<h2>Vuelo de pulgones</h2><div class="tiny">No se pudo calcular: ${esc(e.message)}</div>`; }
+  catch (e) { el.innerHTML = `<h2>Vuelo de pulgones</h2><div class="aviso">No se pudo calcular: ${esc(e.message)}</div><button class="btn sec blk" data-afir="1">Reintentar</button>`; const b = el.querySelector('[data-afir]'); if (b) b.onclick = () => { el.innerHTML = '<h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span> Reintentando…</div>'; pintarAfidos(sel, compacto); }; }
 }
 async function vAfidos() {
   V().innerHTML = `<div class="card" id="afiV"><h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span> Sumando grados día desde el 1 de julio…</div></div><button class="btn sec blk" id="afiR">Actualizar</button>`;
