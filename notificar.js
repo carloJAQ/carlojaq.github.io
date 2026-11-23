@@ -1,7 +1,8 @@
 // AgroClima · aviso automático (lo corre GitHub Actions todos los días).
 // 1) Hace una consulta a Supabase para que el proyecto gratis no se pause.
-// 2) Los lunes, miércoles, viernes y domingo (o si FORZAR=1) calcula el resumen y manda la notificación
+// 2) Todos los días (o si FORZAR=1) calcula el resumen completo y manda la notificación
 //    a los teléfonos que activaron los avisos en la app.
+// 3) Cada 15 minutos manda los mensajes escritos a mano en la app (tabla ac_mensajes) cuando llega su hora.
 // Usa el mismo código de cálculo que la app: lo baja de la página publicada.
 const vm = require('vm');
 let webpush = null;
@@ -10,7 +11,7 @@ const APP = process.env.APP_URL || 'https://carlojaq.github.io/agroclima/';
 const SB_URL = 'https://gdrnstimuliiyxsmvujq.supabase.co';
 const VAPID_PUB = process.env.VAPID_PUBLIC;
 const VAPID_PRIV = process.env.VAPID_PRIVATE;
-const DIAS_AVISO = [0, 1, 3, 5]; // domingo, lunes, miércoles, viernes
+const DIAS_AVISO = [0, 1, 2, 3, 4, 5, 6]; // todos los días
 
 const pad = n => String(n).padStart(2, '0');
 const hoyStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -31,6 +32,18 @@ async function main() {
   const lotesTodos = await sb('GET', 'ac_lotes?select=*');
   console.log(`Supabase activo: ${lotesTodos.length} lotes.`);
 
+  // 3) mensajes manuales cuya hora ya llegó
+  const subsM = VAPID_PRIV ? await sb('GET', 'ac_push?select=*&activo=eq.true') : [];
+  const pend = await sb('GET', `ac_mensajes?select=*&enviado_en=is.null&enviar_en=lte.${encodeURIComponent(new Date().toISOString())}&order=enviar_en.asc`).catch(e => { console.log('Tabla de mensajes no disponible:', e.message); return []; });
+  if (pend.length && !VAPID_PRIV) console.log('Hay mensajes pendientes pero falta VAPID_PRIVATE.');
+  for (const m of VAPID_PRIV ? pend : []) {
+    const r = await enviar(subsM, { title: m.titulo || 'INIA La Pampa', body: m.texto || '', url: './#mensajes', tag: 'msg-' + m.id }, 24 * 3600, sb);
+    await sb('PATCH', `ac_mensajes?id=eq.${m.id}`, { enviado_en: new Date().toISOString(), enviados: r.ok });
+    console.log(`Mensaje "${(m.titulo || '').slice(0, 40)}" enviado a ${r.ok} de ${subsM.length} teléfonos.`);
+  }
+  const CRON = process.env.CRON || '';
+  if (CRON && CRON !== '13 10 * * *') { console.log('Pasada de mensajes lista.'); return; }
+
   const dia = new Date().getDay();
   if (process.env.FORZAR !== '1' && !DIAS_AVISO.includes(dia)) { console.log('Hoy no toca aviso.'); return; }
   if (!VAPID_PRIV) { console.log('Falta el secreto VAPID_PRIVATE: no se envían avisos.'); return; }
@@ -45,6 +58,7 @@ async function main() {
 
   const [apps, cfgs, subs] = await Promise.all([sb('GET', 'ac_aplicaciones?select=*'), sb('GET', 'ac_config?id=eq.general&select=datos'), sb('GET', 'ac_push?select=*&activo=eq.true')]);
   const prods = await sb('GET', 'ac_productos?select=*').catch(() => []);
+  const visitas = await sb('GET', 'ac_visitas?select=lote_id,fecha,ajuste_gd').catch(() => []);
   if (!subs.length) { console.log('Nadie activó las notificaciones todavía.'); return; }
   const CFG = Object.assign(JSON.parse(JSON.stringify(M.CONFIG)), (cfgs[0] && cfgs[0].datos) || {});
   const CULT = { papa: 1, trigo: 1, avena: 1, cebada: 1 };
@@ -80,7 +94,10 @@ async function main() {
       const prom = pas.slice(-7).concat(fut.slice(0, 7)); const gdProm = prom.length ? prom.reduce((t, d) => t + d.gd, 0) / prom.length : 0;
       const fechaGD = gd => { const d = S.dias.find(x => x.gdAc >= gd); if (d) return d.fecha; if (!hd || gdProm <= 0.3) return null; return M.sumarDias(hoy, Math.ceil((gd - hd.gdAc) / gdProm)); };
       const et = (CFG[l.cultivo] || CFG.papa).etapas, gdE = re => (et.find(e => re.test(e.n)) || {}).gd;
-      const r = { l, dec: dec.global, prox: [], pend: [], insp: [] };
+      const vis = visitas.filter(x => x.lote_id === l.id && String(x.fecha).slice(0, 10) <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], aj = vis ? +vis.ajuste_gd || 0 : 0;
+      const etp = hd ? M.etapa(hd.gdAc, l, CFG, gdProm, hoy, aj) : null;
+      const r = { l, enf: Object.fromEntries(Object.entries(dec.enfermedades || {}).map(([k, v]) => [k, v.decision])), dec: dec.global, por: dec.por || [], prox: [], pend: [], insp: [], cambio: null, gd: hd ? hd.gdAc + aj : null, etapa: etp ? etp.actual : null, gdProm };
+      if (hd) { const ay = S.dias.find(x => x.fecha === M.sumarDias(hoy, -1)), g0 = (ay ? ay.gdAc : hd.gdAc) + aj, g3 = hd.gdAc + aj + 3 * gdProm; r.cambios = et.filter(x => x.gd > g0 && x.gd <= g3).map(x => ({ n: x.n, f: fechaGD(x.gd - aj) || hoy })); }
       if (l.cultivo === 'papa') {
         const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, ap);
         r.prox = ev.filter(e => !e.app && e.fecha >= hoy && e.fecha <= M.sumarDias(hoy, 2));
@@ -93,40 +110,81 @@ async function main() {
       res.push(r);
     }
   }
+  // El clima de la zona (hoy, ventanas para aplicar, próximos días) es el de INIA La Pampa
+  const LP = { lat: -40.8606, lon: -73.1569 };
+  try { refH = await clima(LP.lat, LP.lon, M.sumarDias(hoy, -10)); } catch (e) { console.log('Clima La Pampa falló, uso el del primer potrero:', e.message); }
   if (!refH) throw new Error('No se pudo bajar el pronóstico.');
   const Sm = CAL.semana(refH, hoy, CFG), ven = M.ventanas(refH, ahoraStr(), CFG, 72);
   const corto = n => String(n).split(' · ')[0].replace(/\b(\w)(\w*)/g, (m, a, b) => a + b.toLowerCase());
   const aplicar = res.filter(r => r.prox.length || r.pend.length || r.dec === 'APLICAR');
-  const partes = [];
-  if (aplicar.length) {
-    const nPend = aplicar.filter(r => r.pend.length).length, nHoy = aplicar.filter(r => !r.pend.length && r.prox.some(e => e.fecha === hoy)).length;
-    const nTiz = aplicar.filter(r => r.dec === 'APLICAR').length;
-    const prods = {}; aplicar.forEach(r => r.pend.concat(r.prox).forEach(e => { const p = String(e.prod).split(/ \(| o |,/)[0].trim(); (prods[p] = prods[p] || new Set()).add(r.l.id); }));
-    const top = Object.entries(prods).sort((a, b) => b[1].size - a[1].size).slice(0, 3).map(([p, s]) => `${p} (${s.size})`);
-    const det = [nPend && `${nPend} atrasado${nPend > 1 ? 's' : ''}`, nHoy && `${nHoy} para hoy`, nTiz && `${nTiz} por tizón`].filter(Boolean).join(', ');
-    partes.push(`Aplicar en ${aplicar.length} lote${aplicar.length > 1 ? 's' : ''}${det ? ' (' + det + ')' : ''}${top.length ? ': ' + top.join(', ') : ''}`);
+  const D = M.diario(refH, CFG), dh = D.find(d => d.fecha === hoy) || {}, pas7 = D.filter(d => d.fecha < hoy && d.fecha >= M.sumarDias(hoy, -7)), fut7 = D.filter(d => d.fecha > hoy && d.fecha <= M.sumarDias(hoy, 7));
+  const sum = (a, k) => a.reduce((t, d) => t + (d[k] || 0), 0), r1 = x => Math.round(x * 10) / 10, r0 = x => Math.round(x), vmax = CFG.aplicacion.vientoMax;
+  const dS = f => fCorta(f).split(' ')[0], ctl = l => l.numero_control ? 'N° ' + l.numero_control : String(l.nombre || '').split(' · ')[0];
+  const lin = [];
+  // 1) clima de hoy y horas para aplicar
+  lin.push(`🌡 La Pampa hoy ${r0(dh.tmin)}–${r0(dh.tmax)} °C · lluvia ${r1(dh.pp || 0)} mm · HR ${r0(dh.hr || 0)} % · viento máx ${r0(dh.viento || 0)} km/h, ráfagas ${r0(dh.rafaga || 0)}`);
+  const vHoyL = ven.lista.filter(v => v.ini.slice(0, 10) === hoy), hh = v => `${v.ini.slice(11, 13)}–${pad(+v.fin.slice(11, 13) + 1)} h`;
+  const vSig = ven.lista.find(v => v.ini.slice(0, 10) > hoy);
+  lin.push(vHoyL.length ? `✅ Se puede aplicar hoy: ${vHoyL.map(hh).join(', ')} (viento <${vmax} km/h y sin lluvia)` : `⛔ Hoy no hay horas aptas para aplicar${vSig ? ` · próxima ventana ${dS(vSig.ini.slice(0, 10))} ${hh(vSig)}` : ''}`);
+  // 2) próximos días: temperatura, lluvia y viento por día
+  lin.push('📅 ' + fut7.slice(0, 5).map(d => `${dS(d.fecha)} ${r0(d.tmin)}/${r0(d.tmax)}° ${r1(d.pp)}mm ${r0(d.viento)}km/h${d.viento >= vmax ? '⚠' : ''}`).join(' · '));
+  lin.push(`💧 Lluvia últimos 7 días ${r0(sum(pas7, 'pp'))} mm · próximos 7 días ${r0(sum(fut7, 'pp'))} mm`);
+  // estrés: calor, helada y agua
+  const tope = (CFG.papa && CFG.papa.tope) || 29, prox3 = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 3));
+  const est = [];
+  const cal = prox3.filter(d => d.tmax >= tope); if (cal.length) est.push(`calor ≥${tope} °C ${cal.map(d => `${dS(d.fecha)} (${r0(d.tmax)}°)`).join(', ')}`);
+  const hel = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 7) && d.tmin <= 1); if (hel.length) est.push(`❄️ helada ${hel.map(d => `${dS(d.fecha)} (${r1(d.tmin)} °C)`).join(', ')}`);
+  const et7 = sum(pas7, 'et0'), bal = sum(pas7, 'pp') - et7; if (et7 > 0 && bal < -10) est.push(`déficit hídrico ${r0(bal)} mm en 7 días (lluvia ${r0(sum(pas7, 'pp'))} − evapotransp. ${r0(et7)})`);
+  const vfut = prox3.filter(d => d.rafaga >= 50); if (vfut.length) est.push(`ráfagas fuertes ${vfut.map(d => `${dS(d.fecha)} ${r0(d.rafaga)} km/h`).join(', ')}`);
+  lin.push(est.length ? `🌡️ Estrés: ${est.join(' · ')}` : '🌡️ Sin estrés por calor, helada ni falta de agua');
+  // 3) hongos: tizón, alternaria y botritis (papa)
+  const papas = res.filter(r => r.l.cultivo === 'papa'), apl = papas.filter(r => r.enf.tizon === 'APLICAR'), nV = papas.filter(r => r.enf.tizon === 'VIGILAR').length;
+  const condTxt = vHoyL.length ? `hay condiciones hoy ${vHoyL.map(hh).join(', ')}` : `no hay condiciones hoy${vSig ? `, próxima ventana ${dS(vSig.ini.slice(0, 10))} ${hh(vSig)}` : ''}`;
+  const enfL = (k, nom) => { const a = papas.filter(r => r.enf[k] === 'APLICAR'), v = papas.filter(r => r.enf[k] === 'VIGILAR'); return a.length ? `${nom} APLICAR ${a.map(r => ctl(r.l)).join(', ')}` : v.length ? `${nom} vigilar (${v.length})` : `${nom} sin riesgo`; };
+  if (papas.length) lin.push(`🍂 Hongos: Tizón ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')} (${condTxt})` : nV ? `vigilar (${nV})` : 'sin riesgo'} · ${enfL('alternaria', 'Alternaria')} · ${enfL('botritis', 'Botritis')}`);
+  const cer = res.filter(r => r.l.cultivo !== 'papa' && r.enf.pulgones);
+  if (cer.length) { const a = cer.filter(r => r.enf.pulgones === 'APLICAR'); lin.push(`🌾 Cereales, pulgones: ${a.length ? `APLICAR en ${a.map(r => ctl(r.l)).join(', ')} (${condTxt})` : `${cer.filter(r => r.enf.pulgones === 'VIGILAR').length ? 'vigilar' : 'sin riesgo'}`}`); }
+  // 3b) vuelo de pulgones (grados día base 4 °C desde el 1 de julio)
+  if (papas.length && M.afidos) {
+    try {
+      const hA = await clima(LP.lat, LP.lon, M.afiInicio(hoy)), R = M.afidos(hA, hoy);
+      if (R) {
+        const pr = R.sig && R.fechaSig ? M.difDias(hoy, R.fechaSig) : null, ad = R.adelanto == null || Math.abs(R.adelanto) <= 3 ? 'año normal' : `${Math.abs(R.adelanto)} días ${R.adelanto > 0 ? 'adelantado' : 'atrasado'}`;
+        lin.push(`🦟 Pulgones: ${R.fase.n} · ${R.gd} GD (${ad}) · hoy ${R.hoy.horas} h aptas de vuelo${pr != null && pr <= 7 ? ` · ⚠ ${R.sig.n} ${pr <= 0 ? 'hoy' : 'aprox. ' + dS(R.fechaSig)} (${R.sig.gd} GD)` : ''}`);
+      }
+    } catch (e) { console.log('Pulgones falló:', e.message); }
   }
-  else partes.push('Sin aplicaciones del calendario para hoy y mañana');
+  // 4) aplicaciones del calendario por número de control
+  if (aplicar.length) {
+    const pr = e => String(e.prod).split(/ \(| o /)[0];
+    const it = aplicar.filter(r => r.prox.length || r.pend.length).sort((a, b) => (b.prox.length ? 1 : 0) - (a.prox.length ? 1 : 0) || b.pend.length - a.pend.length).map(r => { const dias = {}; r.prox.forEach(e => (dias[e.fecha] = dias[e.fecha] || []).push(pr(e))); const t = Object.keys(dias).sort().map(f => `${f === hoy ? 'hoy' : dS(f)} ${dias[f].join(', ')}`); if (r.pend.length) t.push(`${r.pend.length} atrasada${r.pend.length > 1 ? 's' : ''}`); return `${ctl(r.l)}: ${t.join('; ')}`; });
+    lin.push(`🧪 Aplicar\n${it.slice(0, 8).map(x => '  • ' + x).join('\n')}${it.length > 8 ? `\n  • y ${it.length - 8} solicitudes más` : ''}`);
+  } else lin.push('🧪 Sin aplicaciones del calendario para hoy y los próximos 2 días');
+  // 5) cambios de etapa por número de control (desde ayer hasta 3 días más)
+  const cam = res.filter(r => r.cambios && r.cambios.length).flatMap(r => r.cambios.map(c => ({ r, c }))).sort((a, b) => a.c.f < b.c.f ? -1 : 1);
+  if (cam.length) lin.push(`🌱 Cambio de etapa: ${cam.slice(0, 8).map(x => `${ctl(x.r.l)} → ${x.c.n} (${x.c.f <= hoy ? (x.c.f === hoy ? 'hoy' : 'ayer') : dS(x.c.f)})`).join(' · ')}${cam.length > 8 ? ` · y ${cam.length - 8} más` : ''}`);
+  // 6) bodega y SAG
   if (prods.some(p => p.stock != null)) {
     const Bd = CAL.balance(lotes, apps.map(a => Object.assign({}, a, { fecha: String(a.fecha).slice(0, 10) })), prods, hoy, M.sumarDias(hoy, 3));
     const fb = Bd.filas.filter(f => (f.estado === 'sin' || f.estado === 'falta') && f.n);
-    if (fb.length) partes.push('Falta en bodega: ' + fb.slice(0, 3).map(f => f.estado === 'sin' ? f.nombre : `${f.nombre} (faltan ${Math.ceil(f.falta)} ${f.U})`).join(', '));
+    if (fb.length) lin.push('📦 Falta en bodega: ' + fb.slice(0, 3).map(f => f.estado === 'sin' ? f.nombre : `${f.nombre} (faltan ${Math.ceil(f.falta)} ${f.U})`).join(', '));
   }
   const ins = res.filter(r => r.insp.length);
-  if (ins.length) partes.push(`Inspección SAG esta semana: ${ins.length} lote${ins.length > 1 ? 's' : ''}`);
-  partes.push(`Sin lluvia: ${Sm.secos.map(d => fCorta(d.f).split(' ')[0]).join(', ') || 'ningún día'}`);
-  if (Sm.ventosos.length) partes.push(`Viento ≥${CFG.aplicacion.vientoMax}: ${Sm.ventosos.map(d => fCorta(d.f).split(' ')[0]).join(', ')}`);
-  const v = ven.lista[0]; if (v) partes.push(`Ventana: ${fCorta(v.ini.slice(0, 10))} ${v.ini.slice(11, 16)}–${pad(+v.fin.slice(11, 13) + 1)}:00`);
-  const msg = { title: `AgroClima · ${fCorta(hoy)}`, body: partes.join(' · '), url: './#hoy', tag: 'agroclima-' + hoy };
+  if (ins.length) lin.push(`🔍 Inspección SAG esta semana: ${ins.map(r => ctl(r.l)).join(', ')}`);
+  const cuerpo = lin.join('\n');
+  const msg = { title: `AgroClima · ${fCorta(hoy)}`, body: cuerpo.length > 1800 ? cuerpo.slice(0, 1797) + '…' : cuerpo, url: './#hoy', tag: 'agroclima-' + hoy };
   console.log('Aviso:', JSON.stringify(msg));
 
-  webpush = require('web-push');
-  webpush.setVapidDetails('mailto:agroclima@carlojaq.github.io', VAPID_PUB, VAPID_PRIV);
+  const r = await enviar(subs, msg, 6 * 3600, sb);
+  console.log(`Enviado a ${r.ok} de ${subs.length} teléfonos.`);
+}
+async function enviar(subs, msg, ttl, sb) {
+  if (!webpush) { webpush = require('web-push'); webpush.setVapidDetails('mailto:agroclima@carlojaq.github.io', VAPID_PUB, VAPID_PRIV); }
   let ok = 0;
   for (const s of subs) {
-    try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(msg), { TTL: 6 * 3600 }); ok++; }
+    try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(msg), { TTL: ttl }); ok++; }
     catch (e) { console.log('Falló un teléfono:', e.statusCode || e.message); if (e.statusCode === 404 || e.statusCode === 410) await sb('DELETE', `ac_push?id=eq.${encodeURIComponent(s.id)}`); }
   }
-  console.log(`Enviado a ${ok} de ${subs.length} teléfonos.`);
+  return { ok };
 }
 main().catch(e => { console.error(e); process.exit(1); });
