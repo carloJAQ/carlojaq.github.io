@@ -129,6 +129,7 @@ img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;fle
 .ftab.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
 .tabP{display:none}.tabP.vis{display:block}.tabTit{display:none}
 .chipF{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer;background:var(--card)}
+.card.enPot{margin:0 0 8px;box-shadow:none;border:1px solid var(--line);padding:10px}
 .chipSel.on{background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important}
 .chipF.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .lt-i{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
@@ -2850,6 +2851,8 @@ async function sb(method, path, body, prefer) {
 const limpio = o => { const x = {}; for (const k in o) if (k[0] !== '_') x[k] = o[k] === '' ? null : o[k]; return x; };
 const TABLAS = { lotes: 'ac_lotes', apps: 'ac_aplicaciones', obs: 'ac_obs', prods: 'ac_productos', muestreos: 'ac_muestreos', visitas: 'ac_visitas' };
 let sincronizando = false;
+// La nube exige que todas las filas de un envío tengan los mismos campos: se completan los que falten con null
+function mismasClaves(filas) { const ks = new Set(); filas.forEach(f => Object.keys(f).forEach(k => ks.add(k))); return filas.map(f => { const o = {}; ks.forEach(k => o[k] = f[k] === undefined ? null : f[k]); return o; }); }
 async function sincronizar(silencio) {
   if (!nubeLista()) { estadoNube('off', 'Solo local'); return; }
   if (sincronizando) return; sincronizando = true; estadoNube('pend', 'Sincronizando');
@@ -2857,7 +2860,7 @@ async function sincronizar(silencio) {
     const fallas = [];
     for (const col in TABLAS) {
       const pend = (DB[col] = DB[col] || []).filter(x => x._pend);
-      if (pend.length) { try { await sb('POST', TABLAS[col] + '?on_conflict=id', pend.map(limpio), 'resolution=merge-duplicates,return=minimal'); pend.forEach(x => delete x._pend); } catch (e) { if (/Failed to fetch|NetworkError/i.test(e.message)) throw e; fallas.push(TABLAS[col]); console.warn(e); } }
+      if (pend.length) { try { await sb('POST', TABLAS[col] + '?on_conflict=id', mismasClaves(pend.map(limpio)), 'resolution=merge-duplicates,return=minimal'); pend.forEach(x => delete x._pend); } catch (e) { if (/Failed to fetch|NetworkError/i.test(e.message)) throw e; fallas.push(TABLAS[col]); console.warn(e); } }
     }
     for (const b of BORRADOS.slice()) { await sb('DELETE', `${b.t}?id=eq.${b.id}`, null, 'return=minimal'); BORRADOS = BORRADOS.filter(x => x !== b); }
     LS.set('ac_del', BORRADOS);
@@ -3114,9 +3117,18 @@ function vInicio() {
   h += `<div class="fichaTabs" id="grpTabs" style="margin-bottom:10px"><button class="ftab${grp === 'papa' ? ' on' : ''}" data-g="papa">Papa (${nP})</button><button class="ftab${grp !== 'papa' ? ' on' : ''}" data-g="cer">Cereales (${nC})</button></div>`;
   if (lotes.length) h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="resu">Resumen en tabla</button><button class="btn sec grow" id="mapaL">Mapa de lotes</button></div>`;
   if (!lotes.length) h += `<div class="card vacio">${todos.length ? `No hay solicitudes de ${grp === 'papa' ? 'papa' : 'cereales'}.` : 'Aún no tienes lotes.<br>Crea uno con su punto GPS y fecha de plantación o siembra.'}</div>`;
-  lotes.forEach(l => {
-    h += `<div class="card lote" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° <b>${esc(l.numero_control)}</b> · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''}${+l.superficie_ha ? ' · ' + n1(l.superficie_ha) + ' ha' : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
+  const abiertos = new Set(LS.get('ac_pot_abiertos', []));
+  const potDe = l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase(); const grupos = {}; lotes.forEach(l => { const k = potDe(l); (grupos[k] = grupos[k] || []).push(l); });
+  const tarjeta = l => `<div class="card lote enPot" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° <b>${esc(l.numero_control)}</b> · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''}${+l.superficie_ha ? ' · ' + n1(l.superficie_ha) + ' ha' : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
+  Object.keys(grupos).sort().forEach(k => {
+    const ls = grupos[k], ab = abiertos.has(k) || ls.length === 1, ha = ls.reduce((t, l) => t + (+l.superficie_ha || 0), 0);
+    let res = '';
+    if (grp === 'papa') { const S = ls.map(l => estadoApps(l)), at = S.reduce((t, x) => t + x.atras.length, 0), sig = S.flatMap(x => x.futuras).sort((a, b) => a.fecha < b.fecha ? -1 : 1)[0]; res = `${at ? `<b style="color:var(--bad)">${at} atrasadas</b>` : 'Al día con el calendario'}${sig ? ` · próxima: ${esc(sig.prod.split(/ \(| o /)[0])} ${fFecha(sig.fecha)}` : ''}`; }
+    h += `<div class="card potrero" data-pot="${esc(k)}"><div class="row potHead" style="cursor:pointer;align-items:flex-start"><div class="grow"><div class="tit">${esc(String(ls[0].nombre).split(' · ')[0])}</div><div class="small muted">${ls.length} solicitud${ls.length > 1 ? 'es' : ''} · ${n1(ha)} ha · N° ${ls.map(l => esc(l.numero_control || '—')).join(', ')}</div>${res ? `<div class="small" style="margin-top:4px">${res}</div>` : ''}</div><span class="small" style="padding:2px 4px">${ab ? '▲' : '▼'}</span></div>
+      ${grp === 'papa' ? `<button class="btn sec blk noRes" data-apot="${esc(k)}" style="margin-top:8px">+ Aplicación al potrero</button>` : ''}
+      <div class="potBody" style="${ab ? '' : 'display:none;'}margin-top:8px">${ls.map(tarjeta).join('')}</div></div>`;
   });
+
   if (pend.length) h += `<div class="card"><h2>Pendientes por completar (${pend.length})</h2><div class="tiny">Vinieron de la planilla sin cultivo, fecha o punto GPS. Toca uno para completarlo; mientras tanto no entran en los cálculos.</div>${pend.map(l => `<div class="vent" data-pend="${l.id}" style="cursor:pointer"><span>${esc(l.nombre)}</span><span class="tiny" style="color:var(--bad)">${[!CULTIVOS[l.cultivo] ? 'cultivo' : '', !l.fecha_plantacion ? 'fecha' : '', l.lat == null ? 'GPS' : ''].filter(Boolean).join(', ')}</span></div>`).join('')}</div>`;
   if (lotes.length) h += `<div class="tiny" style="text-align:center;margin:-4px 0 10px">Mantén apretado un lote para editarlo o borrarlo.</div>`;
   if (inact.length) h += `<details class="card"><summary>Lotes inactivos (${inact.length})</summary>${inact.map(l => `<div class="vent lote" data-id="${l.id}"><span>${esc(l.nombre)}</span><span class="tiny">${CULTIVOS[l.cultivo]}</span></div>`).join('')}</details>`;
@@ -3129,6 +3141,8 @@ function vInicio() {
   if ($('#resu')) $('#resu').onclick = () => ir(vResumen, 'Resumen de lotes', true);
   if ($('#mapaL')) $('#mapaL').onclick = () => ir(vMapa, 'Mapa de lotes', true);
   $('#refr').onclick = () => { sincronizar(); cargarResumenes(lotes, true); };
+  V().querySelectorAll('.potHead').forEach(e => e.onclick = () => { const c = e.closest('.potrero'), k = c.dataset.pot, b = c.querySelector('.potBody'), ab = b.style.display === 'none'; b.style.display = ab ? '' : 'none'; e.querySelector('span').textContent = ab ? '▲' : '▼'; const set = new Set(LS.get('ac_pot_abiertos', [])); ab ? set.add(k) : set.delete(k); LS.set('ac_pot_abiertos', [...set]); });
+  V().querySelectorAll('[data-apot]').forEach(b => b.onclick = () => { const ls = lotes.filter(l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase() === b.dataset.apot); registrarGrupo(ls.map(l => l.id), 'Potrero ' + String(ls[0].nombre).split(' · ')[0]); });
   V().querySelectorAll('.lote').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } const l = DB.lotes.find(x => x.id === e.dataset.id); ir(() => vLote(l.id), l.nombre, true); }; mantener(e, () => menuLote(e.dataset.id)); });
   cargarResumenes(lotes, false);
   pintarMensajesInicio();
@@ -3795,12 +3809,12 @@ async function vMensajes() {
   let lista = [], pin = null, err = '';
   try { [lista, pin] = await Promise.all([sb('GET', 'ac_mensajes?select=*&order=enviar_en.desc&limit=40'), claveAdmin()]); }
   catch (e) { err = /ac_mensajes|42P01|PGRST205/.test(e.message) ? 'Falta crear la tabla de mensajes en Supabase.' : e.message; }
-  const admin = !!pin && LS.get('ac_admin', '') === pin;
+  const admin = true; // sin clave: cualquiera con la app puede enviar y borrar mensajes
   const ahora = new Date().toISOString();
   const env = lista.filter(m => m.enviado_en || m.enviar_en <= ahora), prog = lista.filter(m => !m.enviado_en && m.enviar_en > ahora);
   LS.set('ac_msj_leido', ahora);
   let h = err ? `<div class="error">${esc(err)}</div>` : '';
-  h += `<div class="card"><h2>Mensajes de INIA La Pampa</h2>${env.length ? env.map(m => `<div class="vent" style="align-items:flex-start"><span><b>${esc(m.titulo || 'INIA La Pampa')}</b><br><span class="small">${esc(m.texto || '')}</span><br><span class="tiny">${fHoraMsg(m.enviado_en || m.enviar_en)}${m.autor ? ' · ' + esc(m.autor) : ''}${admin && m.enviado_en ? ` · llegó a ${m.enviados || 0} teléfono${m.enviados === 1 ? '' : 's'}` : ''}${!m.enviado_en ? ' · enviándose' : ''}</span></span></div>`).join('') : '<div class="tiny">Todavía no hay mensajes.</div>'}</div>`;
+  h += `<div class="card"><h2>Mensajes de INIA La Pampa</h2>${env.length ? env.map(m => `<div class="vent" data-mid="${m.id}" style="align-items:flex-start;cursor:pointer"><span><b>${esc(m.titulo || 'INIA La Pampa')}</b><br><span class="small">${esc(m.texto || '')}</span><br><span class="tiny">${fHoraMsg(m.enviado_en || m.enviar_en)}${m.autor ? ' · ' + esc(m.autor) : ''}${admin && m.enviado_en ? ` · llegó a ${m.enviados || 0} teléfono${m.enviados === 1 ? '' : 's'}` : ''}${!m.enviado_en ? ' · enviándose' : ''}</span></span></div>`).join('') : '<div class="tiny">Todavía no hay mensajes.</div>'}${env.length ? '<div class="tiny" style="margin-top:6px">Mantén apretado un mensaje para borrarlo o cambiarlo.</div>' : ''}</div>`;
   if (admin) {
     const def = new Date(Date.now() + 3600e3); def.setMinutes(0, 0, 0); const loc = new Date(def.getTime() - def.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     h += `<div class="card"><h2>Enviar un mensaje a todos</h2>
@@ -3812,7 +3826,7 @@ async function vMensajes() {
       <button class="btn blk" id="m_g" style="margin-top:10px">Guardar y enviar</button>
       <div class="tiny" style="margin-top:6px">Lo envía el programa de GitHub, que revisa cada 15 minutos: llega dentro de 15 a 30 minutos desde la hora elegida (GitHub a veces se atrasa algo más). Solo lo reciben los teléfonos que activaron las notificaciones; el resto lo ve aquí al abrir la app.</div></div>`;
     if (prog.length) h += `<div class="card"><h2>Programados (${prog.length})</h2>${prog.map(m => `<div class="vent"><span><b>${esc(m.titulo || '')}</b><br><span class="small">${esc(m.texto || '')}</span><br><span class="tiny">sale ${fHoraMsg(m.enviar_en)}</span></span><button class="btn sec" data-mdel="${m.id}">Cancelar</button></div>`).join('')}</div>`;
-    h += `<button class="btn sec blk" id="m_out" style="margin-bottom:12px">Salir del modo administrador</button>`;
+
   } else if (!err) {
     h += `<div class="card"><h2>${pin ? 'Enviar mensajes (administrador)' : 'Activar el envío de mensajes'}</h2><div class="tiny">${pin ? 'Escribe la clave de administrador para enviar mensajes desde este teléfono.' : 'Crea una clave de administrador. Solo quien la sepa podrá enviar mensajes; el resto solo los lee.'}</div>
       <label>Clave</label><input type="password" id="m_pin" autocomplete="off">${pin ? '' : '<label>Repite la clave</label><input type="password" id="m_pin2" autocomplete="off">'}
@@ -3838,6 +3852,19 @@ async function vMensajes() {
     catch (e) { return toast('No se pudo guardar: ' + e.message); }
     toast(prog ? 'Programado para ' + fHoraMsg(cu.toISOString()) : 'Guardado: sale en los próximos minutos'); vMensajes();
   };
+  V().querySelectorAll('[data-mid]').forEach(el => mantener(el, () => {
+    const m = lista.find(x => x.id === el.dataset.mid); if (!m) return;
+    const ov = document.createElement('div'); ov.className = 'ovl';
+    ov.innerHTML = `<div class="card" style="max-width:360px;margin:20vh auto 0"><h2 style="margin-bottom:4px">${esc(m.titulo || 'Mensaje')}</h2><div class="small" style="margin-bottom:10px">${esc(m.texto || '')}</div>
+      <button class="btn blk" data-mm="edit">Borrar y escribir otro</button><button class="btn peligro blk" data-mm="del" style="margin-top:8px">Borrar</button><button class="btn sec blk" data-mm="x" style="margin-top:8px">Cancelar</button>
+      <div class="tiny" style="margin-top:6px">Borrarlo lo quita de la app. Si ya llegó como notificación a algún teléfono, esa notificación no se puede retirar.</div></div>`;
+    document.body.appendChild(ov);
+    ov.onclick = async ev => { const b = ev.target.closest('[data-mm]'); if (!b) { if (ev.target === ov) ov.remove(); return; } const k = b.dataset.mm; ov.remove(); if (k === 'x') return;
+      try { await sb('DELETE', 'ac_mensajes?id=eq.' + m.id); } catch (e) { return toast('No se pudo borrar: ' + e.message); }
+      toast('Mensaje borrado'); await vMensajes();
+      if (k === 'edit' && $('#m_x')) { const firma = m.autor ? ' — ' + m.autor : ''; $('#m_t').value = m.titulo || 'INIA La Pampa'; $('#m_x').value = (m.texto || '').endsWith(firma) ? m.texto.slice(0, -firma.length) : (m.texto || ''); $('#m_x').oninput(); $('#m_x').focus(); $('#m_x').scrollIntoView({ block: 'center' }); }
+    };
+  }));
   V().querySelectorAll('[data-mdel]').forEach(b => b.onclick = async () => { if (!confirm('¿Cancelar este mensaje programado?')) return; try { await sb('DELETE', 'ac_mensajes?id=eq.' + b.dataset.mdel); toast('Cancelado'); } catch (e) { toast(e.message); } vMensajes(); });
 }
 // Tarjeta en Inicio con los mensajes nuevos (de los últimos 7 días que no se han visto)
@@ -3890,7 +3917,7 @@ function htmlResumenSol(l, A) {
   if (papa) {
     const S = estadoApps(l);
     resumenSol._ev = S.atras.slice(-6).concat(S.prox);
-    h += `<div class="card"><h2>Para hacer</h2>${resumenSol._ev.length ? resumenSol._ev.map((e, i) => filaEvento(e, i, 'rs')).join('') : '<div class="okmsg">Nada atrasado ni para los próximos 7 días.</div>'}${S.atras.length > 6 ? `<div class="tiny">Y ${S.atras.length - 6} atrasadas más; míralas en Aplicaciones.</div>` : ''}${S.atras.length ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-top:8px">Ya se hicieron algunas: dar por hechas…</button>` : ''}<div class="tiny" style="margin-top:4px">Atrasada = el calendario la indicaba y no hay una aplicación registrada que la cubra. <b>Mantén apretada una aplicación para darle visto bueno o quitarla si no se va a aplicar.</b></div></div>`;
+    h += `<div class="card"><div class="row"><h2 class="grow" style="margin:0">Para hacer</h2><button class="btn noRes" data-reglote="1" style="padding:6px 10px">+ Registrar</button></div>${resumenSol._ev.length ? resumenSol._ev.map((e, i) => filaEvento(e, i, 'rs')).join('') : '<div class="okmsg">Nada atrasado ni para los próximos 7 días.</div>'}${S.atras.length > 6 ? `<div class="tiny">Y ${S.atras.length - 6} atrasadas más; míralas en Aplicaciones.</div>` : ''}${S.atras.length ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-top:8px">Ya se hicieron algunas: dar por hechas…</button>` : ''}<div class="tiny" style="margin-top:4px">Atrasada = el calendario la indicaba y no hay una aplicación registrada que la cubra. <b>Mantén apretada una aplicación para darle visto bueno o quitarla si no se va a aplicar.</b></div></div>`;
   }
   return h;
 }
@@ -3933,6 +3960,7 @@ function enlazarFicha(l, A) {
   mostrar(FICHA_TABS.some(([k]) => k === fichaTab._t && V().querySelector(`.tabP[data-t="${k}"]`)) ? fichaTab._t : 'res');
   V().querySelectorAll('[data-rs]').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } registrarEvento(l, resumenSol._ev[+e.dataset.rs]); }; mantener(e, () => menuEvento(l, resumenSol._ev[+e.dataset.rs], () => vLote(l.id))); });
   V().querySelectorAll('[data-hechas]').forEach(b => b.onclick = () => darPorHechas(l));
+  V().querySelectorAll('[data-reglote]').forEach(b => b.onclick = () => registrarGrupo([l.id], `${l.nombre}${l.numero_control ? ' · N° ' + l.numero_control : ''}`));
   enlazarCiclo();
   enlazarDepuracion(l);
   const enlazarLT = () => {
@@ -3944,6 +3972,53 @@ function enlazarFicha(l, A) {
   enlazarLT();
 }
 function fichaTab() { }
+// ---------- Registrar aplicaciones en varias solicitudes a la vez (potrero) o en una ----------
+// Sugiere lo atrasado y lo que viene en 3 días según el calendario, y deja agregar una aplicación propia.
+function registrarGrupo(ids, titulo) {
+  const ls = ids.map(id => DB.lotes.find(l => l.id === id)).filter(Boolean); if (!ls.length) return;
+  const hoy = hoyStr(), ay = M.sumarDias(hoy, -1), h3 = M.sumarDias(hoy, 3);
+  const sug = {}; // por producto
+  ls.forEach(l => estadoApps(l).ev.filter(e => !e.app && e.fecha <= h3 && e.fecha >= M.sumarDias(hoy, -21)).forEach(e => {
+    const pre = preEvento(l, e), k = CAL.norm(pre.producto || e.prod), rg = rangoDosis(e, pre);
+    const s = sug[k] || (sug[k] = { nombre: pre.producto || e.prod, tipo: e.tipo, dosis: rg.length ? rg[0][0] : pre.dosis_ha, unidad: pre.unidad || 'L/ha', ev: {}, atr: 0, prox: 0 });
+    if (!s.ev[l.id]) s.ev[l.id] = e; e.fecha < hoy ? s.atr++ : s.prox++;
+  }));
+  const S = Object.values(sug).sort((a, b) => b.atr - a.atr || a.nombre.localeCompare(b.nombre));
+  const bod = DB.prods.filter(p => p.stock != null).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:420px;margin:4vh auto 0;max-height:92vh;overflow:auto"><h2 style="margin-bottom:2px">Registrar aplicación</h2><div class="tiny">${esc(titulo || '')}</div>
+    <div class="sub" style="margin-top:8px">Solicitudes</div>${ls.map(l => `<label class="chk" style="display:flex;gap:6px;margin:4px 0"><input type="checkbox" data-rl="${l.id}" checked style="width:auto;margin:0">N° ${esc(l.numero_control || '—')} · ${esc(l.variedad || '')} <span class="tiny">${+l.superficie_ha ? n1(l.superficie_ha) + ' ha' : ''}</span></label>`).join('')}
+    <div class="sub" style="margin-top:8px">Fecha</div><div class="row wrap" style="gap:6px"><button class="btn sec chipSel on" data-sf="${hoy}" style="padding:6px 10px">Hoy</button><button class="btn sec chipSel" data-sf="${ay}" style="padding:6px 10px">Ayer</button></div><input type="date" id="rg_f" value="${hoy}" max="${hoy}" style="margin-top:6px">
+    <div class="sub" style="margin-top:10px">Sugeridas por el calendario</div>${S.length ? S.map((x, i) => `<div class="vent" style="align-items:center;gap:8px"><label style="display:flex;gap:8px;align-items:center;flex:1"><input type="checkbox" data-rs="${i}" style="width:auto;margin:0"><span><b>${esc(x.nombre)}</b> <span class="tag">${TIPO_CORTO[x.tipo] || x.tipo}</span><br><span class="tiny">${x.atr ? `atrasada en ${Object.keys(x.ev).length} sol.` : `viene en ${Object.keys(x.ev).length} sol.`}</span></span></label><input type="number" inputmode="decimal" step="0.01" data-rd="${i}" value="${x.dosis ?? ''}" style="width:70px"><span class="tiny">${esc(x.unidad)}</span></div>`).join('') : '<div class="tiny">Nada atrasado ni para los próximos 3 días.</div>'}
+    <div class="sub" style="margin-top:10px">Agregar otra aplicación</div><div id="rg_extra"></div><button class="btn sec blk" id="rg_mas" style="margin-top:6px">+ Agregar producto</button>
+    <label style="margin-top:8px">Notas</label><input id="rg_n" placeholder="Ej.: con Mario, bomba de espalda">
+    <button class="btn blk" id="rg_ok" style="margin-top:12px">Registrar</button><button class="btn sec blk" id="rg_x" style="margin-top:8px">Cancelar</button></div>`;
+  document.body.appendChild(ov);
+  ov.querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { ov.querySelector('#rg_f').value = b.dataset.sf; ov.querySelectorAll('[data-sf]').forEach(x => x.classList.toggle('on', x === b)); });
+  const extra = () => { const d = document.createElement('div'); d.className = 'rgX'; d.style.cssText = 'border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:6px';
+    d.innerHTML = `<select class="rgP"><option value="">Elegir producto de bodega…</option>${bod.map(p => `<option value="${p.id}">${esc(p.nombre)}${p.grupo ? ' · ' + esc(p.grupo) : ''}</option>`).join('')}<option value="otro">Otro (escribir nombre)</option></select><input class="rgN" placeholder="Nombre del producto" style="display:none;margin-top:6px"><div class="row" style="gap:6px;margin-top:6px;align-items:center"><input type="number" inputmode="decimal" step="0.01" class="rgD" placeholder="Dosis" style="flex:1"><select class="rgU" style="width:auto"><option>L/ha</option><option>kg/ha</option><option>cc/100 L</option><option>g/100 L</option></select><select class="rgT" style="width:auto">${['fungicida', 'insecticida', 'herbicida', 'desecante', 'fertilizante', 'foliar', 'otro'].map(t => `<option value="${t}">${TIPO_CORTO[t] || 'Otro'}</option>`).join('')}</select><button class="btn sec rgQ" style="padding:4px 8px">✕</button></div>`;
+    ov.querySelector('#rg_extra').appendChild(d);
+    d.querySelector('.rgP').onchange = e => { const v = e.target.value, p = bod.find(x => x.id === v); d.querySelector('.rgN').style.display = v === 'otro' ? '' : 'none'; if (p) { if (p.dosis_ha != null) d.querySelector('.rgD').value = p.dosis_ha; d.querySelector('.rgU').value = /kg/.test(p.unidad || p.stock_unidad || '') ? 'kg/ha' : (p.unidad && /100/.test(p.unidad) ? p.unidad : 'L/ha'); if (p.clase) d.querySelector('.rgT').value = p.clase; } };
+    d.querySelector('.rgQ').onclick = () => d.remove(); };
+  ov.querySelector('#rg_mas').onclick = extra;
+  ov.querySelector('#rg_x').onclick = () => ov.remove();
+  ov.querySelector('#rg_ok').onclick = () => {
+    const f = ov.querySelector('#rg_f').value; if (!f || f > hoy) return toast('Revisa la fecha');
+    const sel = ls.filter(l => ov.querySelector(`[data-rl="${l.id}"]`).checked); if (!sel.length) return toast('Marca al menos una solicitud');
+    const notas = ov.querySelector('#rg_n').value.trim(), regs = [];
+    S.forEach((x, i) => { if (!ov.querySelector(`[data-rs="${i}"]`).checked) return; const d = numOrNull(ov.querySelector(`[data-rd="${i}"]`).value);
+      sel.forEach(l => { const e = x.ev[l.id]; const base = e ? preEvento(l, e) : { producto: x.nombre, clase: x.tipo, unidad: x.unidad }; regs.push(Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, base, { fecha: f, dosis_ha: d, notas: ['✓ Registrada' + (sel.length > 1 ? ' por potrero' : '') + (e ? ` (calendario, ${e.ddp} DDP)` : '') + '.', notas].filter(Boolean).join(' ') })); }); });
+    let falta = false;
+    ov.querySelectorAll('.rgX').forEach(d => { const v = d.querySelector('.rgP').value, p = bod.find(x => x.id === v), nom = p ? p.nombre : d.querySelector('.rgN').value.trim(); if (!v && !nom) return; if (!nom) { falta = true; return; }
+      sel.forEach(l => regs.push({ id: uid(), lote_id: l.id, fecha: f, producto: nom, ingrediente: p ? p.ingrediente || '' : '', grupo: p ? p.grupo || '' : '', clase: d.querySelector('.rgT').value, dosis_ha: numOrNull(d.querySelector('.rgD').value), unidad: d.querySelector('.rgU').value, superficie_ha: +l.superficie_ha || null, carencia_dias: p ? p.carencia_dias ?? null : null, notas: ['✓ Agregada a mano' + (sel.length > 1 ? ' por potrero' : '') + '.', notas].filter(Boolean).join(' '), created_at: new Date().toISOString() })); });
+    if (falta) return toast('Falta el nombre de un producto');
+    if (!regs.length) return toast('Marca una sugerida o agrega un producto');
+    regs.forEach(a => guardarRegistro('apps', a)); ov.remove();
+    toast(`${regs.length} aplicaci${regs.length > 1 ? 'ones registradas' : 'ón registrada'}`);
+    if (ir._act && ir._act.fn) ir._act.fn();
+  };
+}
+
 // ---------- Aplicado en el ciclo del cultivo (por solicitud) ----------
 function htmlCiclo(l, A) {
   const hoy = hoyStr(), papa = l.cultivo === 'papa', et = etapasFechas(l, A);
