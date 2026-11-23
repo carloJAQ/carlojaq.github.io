@@ -96,7 +96,7 @@ async function main() {
       const et = (CFG[l.cultivo] || CFG.papa).etapas, gdE = re => (et.find(e => re.test(e.n)) || {}).gd;
       const vis = visitas.filter(x => x.lote_id === l.id && String(x.fecha).slice(0, 10) <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], aj = vis ? +vis.ajuste_gd || 0 : 0;
       const etp = hd ? M.etapa(hd.gdAc, l, CFG, gdProm, hoy, aj) : null;
-      const r = { l, dec: dec.global, por: dec.por || [], prox: [], pend: [], insp: [], cambio: null, gd: hd ? hd.gdAc + aj : null, etapa: etp ? etp.actual : null, gdProm };
+      const r = { l, enf: Object.fromEntries(Object.entries(dec.enfermedades || {}).map(([k, v]) => [k, v.decision])), dec: dec.global, por: dec.por || [], prox: [], pend: [], insp: [], cambio: null, gd: hd ? hd.gdAc + aj : null, etapa: etp ? etp.actual : null, gdProm };
       if (hd) { const ay = S.dias.find(x => x.fecha === M.sumarDias(hoy, -1)), g0 = (ay ? ay.gdAc : hd.gdAc) + aj, g3 = hd.gdAc + aj + 3 * gdProm; r.cambios = et.filter(x => x.gd > g0 && x.gd <= g3).map(x => ({ n: x.n, f: fechaGD(x.gd - aj) || hoy })); }
       if (l.cultivo === 'papa') {
         const ev = CAL.eventos((l.norma || {}).prog || 'lp'); CAL.cruzar(l, ev, ap);
@@ -126,12 +126,31 @@ async function main() {
   // 2) próximos días: temperatura, lluvia y viento por día
   lin.push('📅 ' + fut7.slice(0, 5).map(d => `${dS(d.fecha)} ${r0(d.tmin)}/${r0(d.tmax)}° ${r1(d.pp)}mm ${r0(d.viento)}km/h${d.viento >= vmax ? '⚠' : ''}`).join(' · '));
   lin.push(`💧 Lluvia últimos 7 días ${r0(sum(pas7, 'pp'))} mm · próximos 7 días ${r0(sum(fut7, 'pp'))} mm`);
-  const hel = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 7) && d.tmin <= 1);
-  if (hel.length) lin.push(`❄️ Riesgo de helada: ${hel.map(d => `${dS(d.fecha)} (${r1(d.tmin)} °C)`).join(', ')}`);
-  // 3) tizón
-  const papas = res.filter(r => r.l.cultivo === 'papa'), apl = papas.filter(r => r.dec === 'APLICAR'), nV = papas.filter(r => r.dec === 'VIGILAR').length;
+  // estrés: calor, helada y agua
+  const tope = (CFG.papa && CFG.papa.tope) || 29, prox3 = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 3));
+  const est = [];
+  const cal = prox3.filter(d => d.tmax >= tope); if (cal.length) est.push(`calor ≥${tope} °C ${cal.map(d => `${dS(d.fecha)} (${r0(d.tmax)}°)`).join(', ')}`);
+  const hel = D.filter(d => d.fecha >= hoy && d.fecha <= M.sumarDias(hoy, 7) && d.tmin <= 1); if (hel.length) est.push(`❄️ helada ${hel.map(d => `${dS(d.fecha)} (${r1(d.tmin)} °C)`).join(', ')}`);
+  const et7 = sum(pas7, 'et0'), bal = sum(pas7, 'pp') - et7; if (et7 > 0 && bal < -10) est.push(`déficit hídrico ${r0(bal)} mm en 7 días (lluvia ${r0(sum(pas7, 'pp'))} − evapotransp. ${r0(et7)})`);
+  const vfut = prox3.filter(d => d.rafaga >= 50); if (vfut.length) est.push(`ráfagas fuertes ${vfut.map(d => `${dS(d.fecha)} ${r0(d.rafaga)} km/h`).join(', ')}`);
+  lin.push(est.length ? `🌡️ Estrés: ${est.join(' · ')}` : '🌡️ Sin estrés por calor, helada ni falta de agua');
+  // 3) hongos: tizón, alternaria y botritis (papa)
+  const papas = res.filter(r => r.l.cultivo === 'papa'), apl = papas.filter(r => r.enf.tizon === 'APLICAR'), nV = papas.filter(r => r.enf.tizon === 'VIGILAR').length;
   const condTxt = vHoyL.length ? `hay condiciones hoy ${vHoyL.map(hh).join(', ')}` : `no hay condiciones hoy${vSig ? `, próxima ventana ${dS(vSig.ini.slice(0, 10))} ${hh(vSig)}` : ''}`;
-  if (papas.length) lin.push(`🍂 Tizón: ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')} (${condTxt})` : 'ningún lote en APLICAR'}${nV ? ` · vigilar ${nV}` : ''}`);
+  const enfL = (k, nom) => { const a = papas.filter(r => r.enf[k] === 'APLICAR'), v = papas.filter(r => r.enf[k] === 'VIGILAR'); return a.length ? `${nom} APLICAR ${a.map(r => ctl(r.l)).join(', ')}` : v.length ? `${nom} vigilar (${v.length})` : `${nom} sin riesgo`; };
+  if (papas.length) lin.push(`🍂 Hongos: Tizón ${apl.length ? `APLICAR en ${apl.map(r => ctl(r.l)).join(', ')} (${condTxt})` : nV ? `vigilar (${nV})` : 'sin riesgo'} · ${enfL('alternaria', 'Alternaria')} · ${enfL('botritis', 'Botritis')}`);
+  const cer = res.filter(r => r.l.cultivo !== 'papa' && r.enf.pulgones);
+  if (cer.length) { const a = cer.filter(r => r.enf.pulgones === 'APLICAR'); lin.push(`🌾 Cereales, pulgones: ${a.length ? `APLICAR en ${a.map(r => ctl(r.l)).join(', ')} (${condTxt})` : `${cer.filter(r => r.enf.pulgones === 'VIGILAR').length ? 'vigilar' : 'sin riesgo'}`}`); }
+  // 3b) vuelo de pulgones (grados día base 4 °C desde el 1 de julio)
+  if (papas.length && M.afidos) {
+    try {
+      const rl = papas[0].l, hA = await clima(rl.lat, rl.lon, M.afiInicio(hoy)), R = M.afidos(hA, hoy);
+      if (R) {
+        const pr = R.sig && R.fechaSig ? M.difDias(hoy, R.fechaSig) : null, ad = R.adelanto == null || Math.abs(R.adelanto) <= 3 ? 'año normal' : `${Math.abs(R.adelanto)} días ${R.adelanto > 0 ? 'adelantado' : 'atrasado'}`;
+        lin.push(`🦟 Pulgones: ${R.fase.n} · ${R.gd} GD (${ad}) · hoy ${R.hoy.horas} h aptas de vuelo${pr != null && pr <= 7 ? ` · ⚠ ${R.sig.n} ${pr <= 0 ? 'hoy' : 'aprox. ' + dS(R.fechaSig)} (${R.sig.gd} GD)` : ''}`);
+      }
+    } catch (e) { console.log('Pulgones falló:', e.message); }
+  }
   // 4) aplicaciones del calendario por número de control
   if (aplicar.length) {
     const pr = e => String(e.prod).split(/ \(| o /)[0];

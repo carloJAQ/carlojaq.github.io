@@ -1398,7 +1398,57 @@ const M = (() => {
     return { lat: Math.round(lat * 180 / Math.PI * 1e6) / 1e6, lon: Math.round(lon * 180 / Math.PI * 1e6) / 1e6 };
   }
 
-  return { CONFIG, PRESET_INIFAP_ALPHA, diario, gd, gdHorario, kcEn, evalPulgonesCereal, rendPapa, rendCereal, proyeccion, rotacion, pdia, wallin, fast, blitecast, serie, etapa, proteccion, evalTizon, evalAlternaria, evalBotritis, evalHora, ventanas, decidir, difDias, sumarDias, ORDEN, r1, aUTM, deUTM };
+  // ---- Vuelo de pulgones (áfidos) ----
+  // Grados día base 4 °C desde el 1 de julio (umbral de desarrollo de Myzus persicae ≈ 4,3 °C).
+  // Fases PROVISIONALES: calibradas con 10 temporadas (2015-2025) de clima de La Pampa (Open-Meteo)
+  // y el calendario de vuelos del sur (inicio a mediados de noviembre, máximo enero-febrero).
+  const AFI = {
+    base: 4, hIni: 7, hFin: 20,
+    fases: [
+      { gd: 0, n: 'Vuelos esporádicos', nivel: 0, txt: 'Muy pocos pulgones alados; vuelan solo en días cálidos y sin viento.' },
+      { gd: 550, n: 'Inicio de vuelos', nivel: 1, txt: 'Llegan los primeros alados a la papa (en un año normal, a mediados de noviembre).' },
+      { gd: 700, n: 'Vuelos en aumento', nivel: 2, txt: 'La población alada va creciendo (en un año normal, diciembre).' },
+      { gd: 1000, n: 'Máximo de vuelos', nivel: 3, txt: 'Período crítico para virus (PVY, PLRV) en semilleros (en un año normal, enero y febrero).' },
+      { gd: 1700, n: 'Descenso de vuelos', nivel: 2, txt: 'Bajan los vuelos (marzo); el pulgón de los cereales aún vuela en días templados.' },
+      { gd: 2050, n: 'Fin de temporada', nivel: 0, txt: 'Pocos vuelos (abril en adelante).' }
+    ],
+    // GD promedio 2015-2025 en La Pampa (base 4 °C desde el 1 de julio)
+    prom: [['07-01', 3], ['07-15', 34], ['08-01', 79], ['08-15', 117], ['09-01', 168], ['09-15', 215], ['10-01', 280], ['10-15', 346], ['11-01', 453], ['11-15', 557], ['12-01', 684], ['12-15', 813], ['01-01', 986], ['01-15', 1136], ['02-01', 1337], ['02-15', 1510], ['03-01', 1669], ['03-15', 1808], ['04-01', 1952], ['04-15', 2053], ['05-01', 2154], ['05-15', 2232], ['06-01', 2291], ['06-15', 2336], ['06-30', 2380]]
+  };
+  const afiInicio = hoy => { const y = +hoy.slice(0, 4), m = +hoy.slice(5, 7); return `${m >= 7 ? y : y - 1}-07-01`; };
+  // Factor horario de vuelo (0 a 1): luz (07-20 h), temperatura, viento a 10 m y lluvia.
+  const afiHora = (T, V, P, hr) => {
+    if (T == null || hr < AFI.hIni || hr > AFI.hFin) return 0;
+    const fT = T < 11 ? 0 : T < 17 ? (T - 11) / 6 : T <= 27 ? 1 : Math.max(0, (31 - T) / 4);
+    const fV = V == null ? 1 : V <= 12 ? 1 : V <= 18 ? 0.5 : 0;
+    const fP = (P || 0) >= 0.2 ? 0 : 1;
+    return fT * fV * fP;
+  };
+  const afiPuntos = ini => { const y = +ini.slice(0, 4); return AFI.prom.map(([md, g]) => [difDias(ini, `${+md.slice(0, 2) < 7 ? y + 1 : y}-${md}`), g]); };
+  const afiProm = f => { const ini = afiInicio(f), x = difDias(ini, f), P = afiPuntos(ini); for (let i = 1; i < P.length; i++) if (x <= P[i][0]) { const [x0, g0] = P[i - 1], [x1, g1] = P[i]; return g0 + (g1 - g0) * (x - x0) / (x1 - x0); } return P[P.length - 1][1]; };
+  const afiFechaProm = (g, ini) => { const P = afiPuntos(ini); for (let i = 1; i < P.length; i++) if (g <= P[i][1]) { const [x0, g0] = P[i - 1], [x1, g1] = P[i]; return sumarDias(ini, Math.round(x0 + (x1 - x0) * (g - g0) / (g1 - g0))); } return null; };
+  function afidos(h, hoy) {
+    const ini = afiInicio(hoy), D = {};
+    h.time.forEach((t, i) => {
+      const f = t.slice(0, 10); if (f < ini) return; const T = h.t[i]; if (T == null) return;
+      const d = D[f] || (D[f] = { f, s: 0, n: 0, iv: 0, horas: 0, hs: [] }), hr = +t.slice(11, 13);
+      d.s += T; d.n++; const v = afiHora(T, h.ws ? h.ws[i] : null, h.pp ? h.pp[i] : 0, hr); d.iv += v; if (v >= 0.5) { d.horas++; d.hs.push(hr); }
+    });
+    let acc = 0;
+    const dias = Object.values(D).filter(d => d.n >= 18).sort((a, b) => a.f < b.f ? -1 : 1).map(d => { const g = Math.max(0, d.s / d.n - AFI.base); acc += g; return { f: d.f, gdDia: r1(g), gd: Math.round(acc), iv: r1(d.iv), horas: d.horas, hs: d.hs, fut: d.f > hoy }; });
+    if (!dias.length) return null;
+    const dh = dias.filter(d => d.f <= hoy).pop() || dias[0], gd = dh.gd;
+    const faseI = AFI.fases.reduce((k, x, i) => gd >= x.gd ? i : k, 0), fase = AFI.fases[faseI], sig = AFI.fases[faseI + 1] || null;
+    const vent = dias.filter(d => d.f > M_sumar(hoy, -7) && d.f <= M_sumar(hoy, 7)), ritmo = vent.length ? vent.reduce((t, d) => t + d.gdDia, 0) / vent.length : 0;
+    let fechaSig = null;
+    if (sig) { const d = dias.find(x => x.gd >= sig.gd); fechaSig = d ? d.f : ritmo > 0.3 ? sumarDias(dias[dias.length - 1].f, Math.ceil((sig.gd - dias[dias.length - 1].gd) / ritmo)) : null; }
+    const fp = afiFechaProm(gd, ini), adelanto = fp ? difDias(hoy, fp) : null;
+    const en7 = dias.find(d => d.f === sumarDias(hoy, 7)) || dias[dias.length - 1];
+    return { ini, completo: dias[0].f === ini, dias, hoy: dh, gd, gd7: en7.gd, faseI, fase, sig, fechaSig, adelanto, prom: Math.round(afiProm(hoy)), ritmo: r1(ritmo) };
+  }
+  const M_sumar = (s, n) => sumarDias(s, n);
+
+  return { AFI, afiInicio, afiHora, afiProm, afidos, CONFIG, PRESET_INIFAP_ALPHA, diario, gd, gdHorario, kcEn, evalPulgonesCereal, rendPapa, rendCereal, proyeccion, rotacion, pdia, wallin, fast, blitecast, serie, etapa, proteccion, evalTizon, evalAlternaria, evalBotritis, evalHora, ventanas, decidir, difDias, sumarDias, ORDEN, r1, aUTM, deUTM };
 })();
 if (typeof module !== 'undefined') module.exports = M;
 
@@ -3119,13 +3169,21 @@ function vInicio() {
   if (!lotes.length) h += `<div class="card vacio">${todos.length ? `No hay solicitudes de ${grp === 'papa' ? 'papa' : 'cereales'}.` : 'Aún no tienes lotes.<br>Crea uno con su punto GPS y fecha de plantación o siembra.'}</div>`;
   const abiertos = new Set(LS.get('ac_pot_abiertos', []));
   const potDe = l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase(); const grupos = {}; lotes.forEach(l => { const k = potDe(l); (grupos[k] = grupos[k] || []).push(l); });
-  const tarjeta = l => `<div class="card lote enPot" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° <b>${esc(l.numero_control)}</b> · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''}${+l.superficie_ha ? ' · ' + n1(l.superficie_ha) + ' ha' : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div></div>`;
-  Object.keys(grupos).sort().forEach(k => {
+  const tarjeta = l => `<div class="card lote enPot" data-id="${l.id}"><div class="row"><div class="grow"><div class="tit">${esc(l.nombre)}</div><div class="small muted">${l.numero_control ? `N° <b>${esc(l.numero_control)}</b> · ` : ''}${l.categoria ? esc(l.categoria) + ' · ' : ''}${CULTIVOS[l.cultivo] || l.cultivo}${l.variedad ? ' · ' + esc(l.variedad) : ''}${+l.superficie_ha ? ' · ' + n1(l.superficie_ha) + ' ha' : ''} · ${l.cultivo === 'papa' ? 'plantado' : 'sembrado'} ${fFechaL(l.fecha_plantacion)}</div></div><div class="est"><span class="spin"></span></div></div><div class="res small muted" style="margin-top:8px">Cargando clima…</div>${l.cultivo === 'papa' ? `<button class="btn sec blk noRes" data-asol="${l.id}" style="margin-top:8px;padding:8px">+ Aplicar en este semillero</button>` : ''}</div>`;
+  const orden = LS.get('ac_orden_pot', 'az');
+  const nCtl = l => { const m = String(l.numero_control || '').match(/\d+/); return m ? +m[0] : Infinity; };
+  const fPl = l => String(l.fecha_plantacion || '9999');
+  const cmpL = { az: (a, b) => a.nombre.localeCompare(b.nombre, 'es'), za: (a, b) => b.nombre.localeCompare(a.nombre, 'es'), fa: (a, b) => fPl(a).localeCompare(fPl(b)) || nCtl(a) - nCtl(b), fd: (a, b) => fPl(b).localeCompare(fPl(a)) || nCtl(a) - nCtl(b), ca: (a, b) => nCtl(a) - nCtl(b), cd: (a, b) => nCtl(b) - nCtl(a) }[orden] || ((a, b) => 0);
+  Object.values(grupos).forEach(ls => ls.sort(orden === 'az' || orden === 'za' ? (a, b) => nCtl(a) - nCtl(b) : cmpL));
+  const clavePot = { az: k => k, za: k => k, fa: k => grupos[k].map(fPl).sort()[0], fd: k => grupos[k].map(fPl).sort().pop(), ca: k => Math.min(...grupos[k].map(nCtl)), cd: k => Math.max(...grupos[k].map(nCtl)) }[orden] || (k => k);
+  const llaves = Object.keys(grupos).sort((a, b) => { const x = clavePot(a), y = clavePot(b); const r = typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'es'); return (orden === 'za' || orden === 'fd' || orden === 'cd' ? -r : r) || a.localeCompare(b, 'es'); });
+  if (lotes.length) h += `<div class="row" style="margin-bottom:10px;align-items:center;gap:8px"><span class="small muted">Ordenar</span><select id="ordPot" class="grow">${[['az', 'Potrero A → Z'], ['za', 'Potrero Z → A'], ['fa', 'Plantación: más antigua primero'], ['fd', 'Plantación: más reciente primero'], ['ca', 'N° de control ascendente'], ['cd', 'N° de control descendente']].map(([v, t]) => `<option value="${v}"${v === orden ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
+  llaves.forEach(k => {
     const ls = grupos[k], ab = abiertos.has(k) || ls.length === 1, ha = ls.reduce((t, l) => t + (+l.superficie_ha || 0), 0);
     let res = '';
     if (grp === 'papa') { const S = ls.map(l => estadoApps(l)), at = S.reduce((t, x) => t + x.atras.length, 0), sig = S.flatMap(x => x.futuras).sort((a, b) => a.fecha < b.fecha ? -1 : 1)[0]; res = `${at ? `<b style="color:var(--bad)">${at} atrasadas</b>` : 'Al día con el calendario'}${sig ? ` · próxima: ${esc(sig.prod.split(/ \(| o /)[0])} ${fFecha(sig.fecha)}` : ''}`; }
     h += `<div class="card potrero" data-pot="${esc(k)}"><div class="row potHead" style="cursor:pointer;align-items:flex-start"><div class="grow"><div class="tit">${esc(String(ls[0].nombre).split(' · ')[0])}</div><div class="small muted">${ls.length} solicitud${ls.length > 1 ? 'es' : ''} · ${n1(ha)} ha · N° ${ls.map(l => esc(l.numero_control || '—')).join(', ')}</div>${res ? `<div class="small" style="margin-top:4px">${res}</div>` : ''}</div><span class="small" style="padding:2px 4px">${ab ? '▲' : '▼'}</span></div>
-      ${grp === 'papa' ? `<button class="btn sec blk noRes" data-apot="${esc(k)}" style="margin-top:8px">+ Aplicación al potrero</button>` : ''}
+      ${grp === 'papa' ? `<button class="btn sec blk noRes" data-apot="${esc(k)}" style="margin-top:8px">+ Aplicar en todo el potrero</button>` : ''}
       <div class="potBody" style="${ab ? '' : 'display:none;'}margin-top:8px">${ls.map(tarjeta).join('')}</div></div>`;
   });
 
@@ -3133,6 +3191,7 @@ function vInicio() {
   if (lotes.length) h += `<div class="tiny" style="text-align:center;margin:-4px 0 10px">Mantén apretado un lote para editarlo o borrarlo.</div>`;
   if (inact.length) h += `<details class="card"><summary>Lotes inactivos (${inact.length})</summary>${inact.map(l => `<div class="vent lote" data-id="${l.id}"><span>${esc(l.nombre)}</span><span class="tiny">${CULTIVOS[l.cultivo]}</span></div>`).join('')}</details>`;
   V().innerHTML = h;
+  if ($('#ordPot')) $('#ordPot').onchange = e => { LS.set('ac_orden_pot', e.target.value); vInicio(); };
   V().querySelectorAll('#grpTabs [data-g]').forEach(b => b.onclick = () => { vInicio._g = b.dataset.g; LS.set('ac_inicio_grupo', b.dataset.g); vInicio(); });
   $('#nuevo').onclick = () => ir(() => vLoteForm(null), 'Nuevo lote', true);
   $('#imp').onclick = () => ir(vImportar, 'Importar planilla', true);
@@ -3142,6 +3201,7 @@ function vInicio() {
   if ($('#mapaL')) $('#mapaL').onclick = () => ir(vMapa, 'Mapa de lotes', true);
   $('#refr').onclick = () => { sincronizar(); cargarResumenes(lotes, true); };
   V().querySelectorAll('.potHead').forEach(e => e.onclick = () => { const c = e.closest('.potrero'), k = c.dataset.pot, b = c.querySelector('.potBody'), ab = b.style.display === 'none'; b.style.display = ab ? '' : 'none'; e.querySelector('span').textContent = ab ? '▲' : '▼'; const set = new Set(LS.get('ac_pot_abiertos', [])); ab ? set.add(k) : set.delete(k); LS.set('ac_pot_abiertos', [...set]); });
+  V().querySelectorAll('[data-asol]').forEach(b => { b.onclick = e => { e.stopPropagation(); const l = DB.lotes.find(x => x.id === b.dataset.asol); registrarGrupo([l.id], 'Semillero ' + (l.numero_control ? 'N° ' + l.numero_control + ' · ' : '') + l.nombre); }; ['pointerdown', 'touchstart', 'mousedown'].forEach(ev => b.addEventListener(ev, e => e.stopPropagation())); });
   V().querySelectorAll('[data-apot]').forEach(b => b.onclick = () => { const ls = lotes.filter(l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase() === b.dataset.apot); registrarGrupo(ls.map(l => l.id), 'Potrero ' + String(ls[0].nombre).split(' · ')[0]); });
   V().querySelectorAll('.lote').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } const l = DB.lotes.find(x => x.id === e.dataset.id); ir(() => vLote(l.id), l.nombre, true); }; mantener(e, () => menuLote(e.dataset.id)); });
   cargarResumenes(lotes, false);
@@ -3374,6 +3434,7 @@ async function vLote(id, forzar) {
     <div class="tiny" style="margin-top:6px">Fuente: Open-Meteo para el punto ${l.lat}, ${l.lon}. Actualizado ${new Date(c.ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })} h</div></div>`;
   if (l.cultivo === 'papa') { const nAt = estadoApps(l).atras.length; T.apl += (nAt ? `<button class="btn sec blk noRes" data-hechas="1" style="margin-bottom:10px">Dar por hechas las atrasadas (${nAt})…</button>` : '') + htmlCalendario(l, A) + htmlBodegaLote(l); }
   T.clima += htmlBalance(l, A);
+  if (l.cultivo === 'papa') T.clima += `<div class="card" id="afiLote"><h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span></div></div>`;
   T.fis += htmlCrecimiento(l, A);
   // Aplicaciones
   const apps = A.apps.sort((a, b) => a.fecha < b.fecha ? 1 : -1);
@@ -3386,7 +3447,7 @@ async function vLote(id, forzar) {
   h += tabs.map(([k, t]) => `<div class="tabP" data-t="${k}"><div class="tabTit">${t}</div>${T[k] || '<div class="card tiny">Sin información.</div>'}</div>`).join('');
   h += `<div class="row" style="margin-bottom:12px"><button class="btn sec grow" id="editar">Editar lote</button><button class="btn sec grow" id="recargar">Recargar clima</button></div>`;
   V().innerHTML = h;
-  enlazarNorma(l); enlazarCalendario(l); enlazarFicha(l, A);
+  enlazarNorma(l); enlazarCalendario(l); enlazarFicha(l, A); if (l.cultivo === 'papa') pintarAfidos('#afiLote', true);
   if ($('#l_vis')) $('#l_vis').onclick = () => { vVisita._A = { id: l.id, A }; ir(() => vVisita(l.id), 'Visita a terreno', true); };
   V().querySelectorAll('[data-bv]').forEach(b => b.onclick = () => { if (confirm('¿Borrar esta visita? Se quita también su ajuste.')) { borrarRegistro('visitas', b.dataset.bv); delete memClima[l.id]; vLote(l.id); } });
   $('#editar').onclick = () => ir(() => vLoteForm(id), 'Editar lote', true);
@@ -3739,6 +3800,73 @@ function vImportarApps() {
       ${ya.length ? `<details style="margin-top:6px"><summary class="small">Ya estaban registradas (${ya.length})</summary><div class="tiny">${ya.join('<br>')}</div></details>` : ''}`;
     if ($('#ia_ok')) $('#ia_ok').onclick = () => { ok.forEach(a => { delete a._l; guardarRegistro('apps', a); }); cor.forEach(c => guardarRegistro('apps', Object.assign(clon(c.ex), { dosis_ha: c.d }))); toast(`${ok.length} cargadas${cor.length ? `, ${cor.length} corregidas` : ''}`); $('#ia_res').innerHTML = `<div class="okmsg">Listo: ${ok.length} aplicaciones cargadas${cor.length ? ` y ${cor.length} corregidas` : ''}. Ya aparecen en el Resumen de cada solicitud y se descuentan de la bodega.</div>`; };
   };
+}
+
+
+// =====================================================================
+// VUELO DE PULGONES (ÁFIDOS) · grados día base 4 °C desde el 1 de julio
+// =====================================================================
+const AFI_REC = [
+  'Instala trampas amarillas de agua a la altura del follaje antes de la emergencia y revísalas 2 veces por semana. Elimina papas guachas y malezas hospederas.',
+  'Revisa las trampas 2 a 3 veces por semana. Alerta si hay más de 10 pulgones por trampa en la semana o aparece el primer Myzus persicae (pulgón verde). Semilleros protegidos desde la emergencia (aceite mineral).',
+  'Revisa trampas y brotes 3 veces por semana. Refuerza la protección en los días con muchas horas aptas de vuelo.',
+  'Período crítico para PVY. Si las capturas suben, planifica la destrucción del follaje de los semilleros (referencia holandesa: 2 Myzus alados por trampa al día durante varios días).',
+  'Mantén la protección hasta la destrucción del follaje: en otoño el pulgón de los cereales sigue volando en días templados.',
+  'Temporada de vuelos terminada.'];
+async function datosAfidos(forzar) {
+  const ref = DB.lotes.find(l => l.activo !== false && l.cultivo === 'papa' && l.lat != null) || DB.lotes.find(l => l.lat != null);
+  const lat = ref ? +ref.lat : -40.91, lon = ref ? +ref.lon : -73.16, hoy = hoyStr();
+  const firma = `a1,${lat.toFixed(2)},${lon.toFixed(2)},${hoy}`, c = LS.get('ac_afi', null);
+  if (!forzar && c && c.firma === firma && Date.now() - c.ts < 3 * 3600e3) return c.R;
+  const h = await traerClima(lat, lon, M.afiInicio(hoy), 7);
+  const R = M.afidos(h, hoy); if (!R) throw new Error('Sin datos de clima para los pulgones.');
+  R.lugar = ref ? String(ref.nombre).split(' · ')[0] : 'INIA La Pampa';
+  LS.set('ac_afi', { firma, ts: Date.now(), R }); return R;
+}
+const afiCls = n => n >= 3 ? 'error' : n >= 1 ? 'aviso' : 'okmsg';
+const afiHoras = d => { if (!d || !d.hs.length) return 'sin horas aptas'; const t = []; let a = d.hs[0], b = a; d.hs.slice(1).concat([99]).forEach(x => { if (x === b + 1) b = x; else { t.push(`${pad(a)}–${pad(b + 1)} h`); a = b = x; } }); return `${d.horas} h (${t.join(', ')})`; };
+function afiAdel(R) { const a = R.adelanto; return a == null ? '' : Math.abs(a) <= 3 ? 'igual que un año normal' : `${Math.abs(a)} días ${a > 0 ? 'adelantado' : 'atrasado'} respecto a un año normal`; }
+function afiBarra(R) {
+  const F = M.AFI.fases, hoy = hoyStr(), col = ['#5e8f4e', '#d39a00', '#e07b00', '#c62828', '#e07b00', '#5e8f4e'];
+  const fecha = f => { if (!f.gd) return R.ini; const d = R.dias.find(x => x.gd >= f.gd); if (d) return { f: d.f, est: d.fut }; const y = +R.ini.slice(0, 4), P = M.AFI.prom.map(([md, g]) => [`${+md.slice(0, 2) < 7 ? y + 1 : y}-${md}`, g]); for (let i = 1; i < P.length; i++) if (f.gd <= P[i][1]) { const [a, g0] = P[i - 1], [b, g1] = P[i]; return { f: M.sumarDias(a, Math.round(M.difDias(a, b) * (f.gd - g0) / (g1 - g0)) - (R.adelanto || 0)), est: true }; } return null; };
+  return `<div style="margin-top:6px">${F.map((f, i) => { const on = i === R.faseI, pas = i < R.faseI, fe = i ? fecha(f) : null, sigG = F[i + 1] ? F[i + 1].gd : null;
+    return `<div class="row" style="align-items:center;gap:10px;padding:7px 8px;border-radius:8px;${on ? 'background:var(--warnbg);font-weight:700;' : ''}${pas ? 'opacity:.55;' : ''}"><span style="width:12px;height:12px;border-radius:50%;background:${col[i]};flex:none"></span><span class="grow small">${esc(f.n)}${on ? ' ← hoy' : ''}<br><span class="tiny" style="font-weight:400">${f.gd}${sigG ? '–' + sigG : '+'} GD</span></span><span class="small" style="text-align:right">${fe ? `${fe.est ? '≈ ' : ''}${fFecha(fe.f)}` : '1 jul'}</span></div>`; }).join('')}</div>
+    <div class="tiny">Fecha en que empieza cada fase: real si ya pasó; con ≈ si es estimada (pronóstico o año normal ajustado por el adelanto actual).</div>`;
+}
+function htmlAfidos(R, compacto) {
+  const f = R.fase, hoy = hoyStr(), pr = R.sig && R.fechaSig ? M.difDias(hoy, R.fechaSig) : null;
+  const alerta = R.sig && pr != null && pr <= 7 ? `<div class="aviso"><b>Alerta:</b> pasa a <b>${esc(R.sig.n)}</b> ${pr <= 0 ? 'hoy' : `en ${pr} día${pr > 1 ? 's' : ''} (aprox. ${fFechaL(R.fechaSig)})`} al llegar a ${R.sig.gd} GD.</div>` : '';
+  const cab = `<div class="${afiCls(f.nivel)}" style="margin-top:8px"><b style="font-size:16px">${esc(f.n)}</b><br>${esc(f.txt)}</div>${alerta}
+    <div class="grid3" style="margin-top:8px"><div class="kpi"><b>${n0(R.gd)}</b><span>GD acumulados (base 4 °C desde 1 jul)</span></div><div class="kpi"><b>${R.adelanto == null ? '—' : (R.adelanto > 0 ? '+' : '') + R.adelanto}</b><span>días vs. año normal (${n0(R.prom)} GD)</span></div><div class="kpi"><b>${R.hoy.horas}</b><span>horas aptas de vuelo hoy</span></div></div>`;
+  if (compacto) return `<h2>Vuelo de pulgones</h2>${cab}<div class="small" style="margin-top:6px">${R.sig ? `Próxima fase: <b>${esc(R.sig.n)}</b> con ${R.sig.gd} GD${R.fechaSig ? `, aprox. ${fFechaL(R.fechaSig)}` : ''}. ` : ''}Temporada ${afiAdel(R)}.</div><button class="btn sec blk" data-afi="1" style="margin-top:8px">Ver curva de vuelo</button>`;
+  const ds = R.dias.filter(d => d.f >= M.sumarDias(hoy, -20)), cD = (d) => d.iv >= 5 ? (d.fut ? '#e89a9a' : '#c62828') : d.iv >= 2 ? (d.fut ? '#efcf73' : '#d39a00') : (d.fut ? '#a9c99c' : '#5e8f4e');
+  const pk = R.dias.filter(d => d.f >= M.sumarDias(hoy, 1)).sort((a, b) => b.iv - a.iv)[0];
+  return `<h2>Vuelo de pulgones (áfidos)</h2><div class="tiny">Clima de ${esc(R.lugar)}. Vale para toda la zona.</div>${cab}
+    <div class="small" style="margin-top:6px">${R.sig ? `Próxima fase: <b>${esc(R.sig.n)}</b> con ${R.sig.gd} GD${R.fechaSig ? `, aprox. <b>${fFechaL(R.fechaSig)}</b>` : ''} (suma ${n1(R.ritmo)} GD por día). ` : ''}Temporada ${afiAdel(R)}.</div>
+    <h3>Fases de la temporada (grados día)</h3>${afiBarra(R)}
+    <h3>Grados día acumulados de pulgones</h3>
+    <div>${grafico(R.dias.map(d => ({ x: d.f, y: d.gd, fut: d.fut })), { tipo: 'linea', unidad: 'GD', titulo: 'GD pulgones', color: '#7a4b9a', marcas: M.AFI.fases.slice(1).filter(x => x.gd <= Math.max(R.gd7 * 1.3, 700)).map(x => ({ y: x.gd, n: x.n })) })}</div>
+    <div class="tiny">Desde el 1 de julio. Líneas punteadas: inicio de cada fase. Tramo punteado: pronóstico.</div>
+    <h3>Oportunidad de vuelo por día</h3>
+    <div>${grafico(ds.map(d => ({ x: d.f, y: d.iv, fut: d.fut, col: cD(d) })), { tipo: 'barra', unidad: '', titulo: 'Índice de vuelo' })}</div>
+    <div class="tiny">Suma de las horas con condiciones de vuelo (cada hora vale de 0 a 1). Verde menos de 2 · amarillo 2 a 5 · rojo más de 5. Colores claros: pronóstico.</div>
+    <div class="small" style="margin-top:6px">Hoy: ${afiHoras(R.hoy)}.${pk && pk.iv >= 2 ? ` Día con más vuelo en la semana: <b>${fFechaL(pk.f)}</b> (${afiHoras(pk)}).` : ''}</div>
+    <h3>Qué hacer en papa semilla</h3><div class="small">${esc(AFI_REC[R.faseI])}</div>
+    ${porque('curva de vuelo', `<p><b>Grados día (GD):</b> se suma cada día lo que la temperatura media pasa de 4 °C, desde el 1 de julio. 4 °C es el umbral de desarrollo del pulgón verde (Myzus persicae ≈ 4,3 °C). Mientras más GD, más generaciones de pulgones y más alados.</p>
+      <p><b>Fases:</b> los cortes de ${M.AFI.fases.slice(1).map(x => x.gd).join(', ')} GD son <b>provisionales</b>. Se ajustaron con 10 temporadas (2015-2025) de clima de La Pampa, para que en un año normal el inicio de vuelos caiga a mediados de noviembre y el máximo en enero-febrero. Un invierno y primavera más cálidos adelantan los vuelos (en Inglaterra, unos 12 días por cada grado más).</p>
+      <p><b>Hora apta para vuelo:</b> entre 7 y 20 h; temperatura sobre 11 °C (vuelo pleno entre 17 y 27 °C, baja sobre 27 °C); viento a 10 m hasta 12 km/h (la mitad hasta 18 km/h; sobre eso no vuelan); sin lluvia (menos de 0,2 mm en la hora).</p>
+      <p><b>Ajuste:</b> anota la fecha del primer pulgón en tus trampas amarillas cada temporada; con 3 a 5 temporadas se pueden corregir los cortes.</p>
+      <p class="tiny">Fuentes: Bell et al. 2023 y Hemming et al. 2022 (Rothamsted Insect Survey); Wiktelius 1981; Walters y Dixon 1984; Haine 1955 (viento); Davis, Radcliffe y Ragsdale 2006 (umbrales de M. persicae); INIA, portal pulgon.inia.cl y ficha técnica 03 INIA Intihuasi (más de 10 pulgones por trampa por semana); Manual del cultivo de la papa INIA-INDAP (destrucción de follaje).</p>`)}`;
+}
+async function pintarAfidos(sel, compacto) {
+  const el = $(sel); if (!el) return;
+  try { const R = await datosAfidos(false); el.innerHTML = htmlAfidos(R, compacto); const b = el.querySelector('[data-afi]'); if (b) b.onclick = () => ir(vAfidos, 'Vuelo de pulgones', true); }
+  catch (e) { el.innerHTML = `<h2>Vuelo de pulgones</h2><div class="tiny">No se pudo calcular: ${esc(e.message)}</div>`; }
+}
+async function vAfidos() {
+  V().innerHTML = `<div class="card" id="afiV"><h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span> Sumando grados día desde el 1 de julio…</div></div><button class="btn sec blk" id="afiR">Actualizar</button>`;
+  $('#afiR').onclick = async () => { LS.set('ac_afi', null); vAfidos(); };
+  pintarAfidos('#afiV', false);
 }
 
 // =====================================================================
@@ -4528,7 +4656,7 @@ const CALC_FN = {
 
 // ---------- Más ----------
 function vMas() {
-  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['impA', 'Importar aplicaciones (Excel)', 'Cargar las aplicaciones hechas desde la planilla', () => ir(vImportarApps, 'Importar aplicaciones', true)], ['hist', 'Historial de condiciones', 'Días en que se pudo aplicar y atrasos, por solicitud', () => ir(vHistorial, 'Historial de condiciones', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
+  const items = [['aplic', 'Aplicaciones', 'Registro de todas las aplicaciones', () => ir(vAplicaciones, 'Aplicaciones', true)], ['prods', 'Mis productos', 'Productos con grupo, dosis y carencia', () => ir(vProductos, 'Mis productos', true)], ['impA', 'Importar aplicaciones (Excel)', 'Cargar las aplicaciones hechas desde la planilla', () => ir(vImportarApps, 'Importar aplicaciones', true)], ['afi', 'Vuelo de pulgones', 'Curva de vuelo de áfidos en grados día', () => ir(vAfidos, 'Vuelo de pulgones', true)], ['hist', 'Historial de condiciones', 'Días en que se pudo aplicar y atrasos, por solicitud', () => ir(vHistorial, 'Historial de condiciones', true)], ['msj', 'Mensajes a la gente', 'Avisos de INIA La Pampa; enviar uno a todos los teléfonos', () => ir(vMensajes, 'Mensajes', true)], ['ajustes', 'Ajustes', 'Nube, criterios y parámetros de los modelos', () => ir(vAjustes, 'Ajustes', true)], ['fuentes', 'Fuentes de la guía', 'Documentos usados', () => ir(vFuentes, 'Fuentes', true)]];
   V().innerHTML = `<div class="card">${items.map(([k, t, d]) => `<div class="vent" data-m="${k}" style="cursor:pointer"><span><b>${t}</b><br><span class="tiny">${d}</span></span><span class="tiny">›</span></div>`).join('')}</div><div class="tiny" style="text-align:center">AgroClima LP · versión 14</div>`;
   V().querySelectorAll('[data-m]').forEach(e => e.onclick = () => items.find(x => x[0] === e.dataset.m)[3]());
 }
@@ -5452,11 +5580,13 @@ async function vHoy() {
   const hoy = hoyStr(), lotes = DB.lotes.filter(l => l.activo !== false && loteCompleto(l));
   V().innerHTML = `<div class="card"><h2>${esc(fFechaL(hoy))}</h2><div class="tiny">Resumen de ${lotes.length} lotes activos. Programa de aplicaciones: el elegido en cada lote (por defecto, calendario La Pampa).</div><div id="hoy_push"></div></div>
     <div class="card" id="hoy_ap"><h2>Aplicar hoy y los próximos 2 días</h2><div class="tiny"><span class="spin"></span> Calculando…</div></div>
+    <div class="card" id="hoy_afi"><h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span></div></div>
     ${htmlBodegaHoy()}
     <div class="card" id="hoy_fen"><h2>Estado fenológico</h2><div class="tiny"><span class="spin"></span></div></div>
     <div class="card" id="hoy_insp"><h2>Inspecciones SAG que vienen</h2><div class="tiny"><span class="spin"></span></div></div>
     <div class="card" id="hoy_sem"><h2>La semana</h2><div class="tiny"><span class="spin"></span></div></div>`;
   pintarPush('#hoy_push');
+  pintarAfidos('#hoy_afi', true);
   if (!lotes.length) { $('#hoy_ap').innerHTML = '<div class="vacio">No hay lotes activos completos.</div>'; return; }
   const filasAp = [], insp = [], decis = [], fen = []; let ref = null;
   const h2 = M.sumarDias(hoy, 2), h7 = M.sumarDias(hoy, -7), h21 = M.sumarDias(hoy, 21);
