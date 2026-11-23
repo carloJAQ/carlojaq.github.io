@@ -183,6 +183,7 @@ img.mini,span.mini{width:52px;height:52px;object-fit:cover;border-radius:6px;fle
 <main id="vista"></main>
 <nav>
   <button data-tab="inicio" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Lotes</button>
+  <button data-tab="agro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Agroclima</button>
   <button data-tab="aqui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>Aquí</button>
   <button data-tab="guia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>Guía</button>
   <button data-tab="calc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg>Calcular</button>
@@ -3138,6 +3139,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
   const t = b.dataset.tab;
   if (t === 'inicio') ir(vInicio, 'AgroClima LP');
+  if (t === 'agro') ir(vAgroclima, 'Agroclima · resumen');
   if (t === 'aqui') ir(vAqui, 'Clima aquí');
   if (t === 'guia') ir(vGuia, 'Guía de estudio');
   if (t === 'calc') ir(vCalcular, 'Calcular');
@@ -3184,7 +3186,7 @@ function vInicio() {
     let res = '';
     if (grp === 'papa') { const S = ls.map(l => estadoApps(l)), at = S.reduce((t, x) => t + x.atras.length, 0), sig = S.flatMap(x => x.futuras).sort((a, b) => a.fecha < b.fecha ? -1 : 1)[0]; res = `${at ? `<b style="color:var(--bad)">${at} atrasadas</b>` : 'Al día con el calendario'}${sig ? ` · próxima: ${esc(sig.prod.split(/ \(| o /)[0])} ${fFecha(sig.fecha)}` : ''}`; }
     h += `<div class="card potrero" data-pot="${esc(k)}"><div class="row potHead" style="cursor:pointer;align-items:flex-start"><div class="grow"><div class="tit">${esc(String(ls[0].nombre).split(' · ')[0])}</div><div class="small muted">${ls.length} solicitud${ls.length > 1 ? 'es' : ''} · ${n1(ha)} ha · N° ${ls.map(l => esc(l.numero_control || '—')).join(', ')}</div>${res ? `<div class="small" style="margin-top:4px">${res}</div>` : ''}</div><span class="small" style="padding:2px 4px">${ab ? '▲' : '▼'}</span></div>
-      ${grp === 'papa' ? `<button class="btn sec blk noRes" data-apot="${esc(k)}" style="margin-top:8px">+ Aplicar en todo el potrero</button>` : ''}
+      ${grp === 'papa' ? `<button class="btn sec blk noRes" data-apot="${esc(k)}" style="margin-top:8px">+ Aplicar en todo el potrero</button><div class="row noRes" style="gap:6px;margin-top:6px"><button class="btn sec grow" data-cpot="${esc(k)}" style="padding:8px">Copiar aplicaciones</button>${PORTA.get() ? `<button class="btn sec grow" data-ppot="${esc(k)}" style="padding:8px;border:2px solid var(--brand)">Pegar (${PORTA.get().items.length})</button>` : ''}</div>` : ''}
       <div class="potBody" style="${ab ? '' : 'display:none;'}margin-top:8px">${ls.map(tarjeta).join('')}</div></div>`;
   });
 
@@ -3203,6 +3205,9 @@ function vInicio() {
   $('#refr').onclick = () => { sincronizar(); cargarResumenes(lotes, true); };
   V().querySelectorAll('.potHead').forEach(e => e.onclick = () => { const c = e.closest('.potrero'), k = c.dataset.pot, b = c.querySelector('.potBody'), ab = b.style.display === 'none'; b.style.display = ab ? '' : 'none'; e.querySelector('span').textContent = ab ? '▲' : '▼'; const set = new Set(LS.get('ac_pot_abiertos', [])); ab ? set.add(k) : set.delete(k); LS.set('ac_pot_abiertos', [...set]); });
   V().querySelectorAll('[data-asol]').forEach(b => { b.onclick = e => { e.stopPropagation(); const l = DB.lotes.find(x => x.id === b.dataset.asol); registrarGrupo([l.id], 'Semillero ' + (l.numero_control ? 'N° ' + l.numero_control + ' · ' : '') + l.nombre); }; ['pointerdown', 'touchstart', 'mousedown'].forEach(ev => b.addEventListener(ev, e => e.stopPropagation())); });
+  const lsPot = k => lotes.filter(l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase() === k);
+  V().querySelectorAll('[data-cpot]').forEach(b => b.onclick = e => { e.stopPropagation(); copiarApps(lsPot(b.dataset.cpot), 'Potrero ' + b.dataset.cpot); });
+  V().querySelectorAll('[data-ppot]').forEach(b => b.onclick = e => { e.stopPropagation(); pegarApps(lsPot(b.dataset.ppot), 'Potrero ' + b.dataset.ppot); });
   V().querySelectorAll('[data-apot]').forEach(b => b.onclick = () => { const ls = lotes.filter(l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase() === b.dataset.apot); registrarGrupo(ls.map(l => l.id), 'Potrero ' + String(ls[0].nombre).split(' · ')[0]); });
   V().querySelectorAll('.lote').forEach(e => { e.onclick = () => { if (e._largo) { e._largo = false; return; } const l = DB.lotes.find(x => x.id === e.dataset.id); ir(() => vLote(l.id), l.nombre, true); }; mantener(e, () => menuLote(e.dataset.id)); });
   cargarResumenes(lotes, false);
@@ -4161,6 +4166,144 @@ function registrarGrupo(ids, titulo) {
     if (!regs.length) return toast('Marca una sugerida o agrega un producto');
     regs.forEach(a => guardarRegistro('apps', a)); ov.remove();
     toast(`${regs.length} aplicaci${regs.length > 1 ? 'ones registradas' : 'ón registrada'}`);
+    if (ir._act && ir._act.fn) ir._act.fn();
+  };
+}
+
+
+
+// =====================================================================
+// AGROCLIMA · página principal de resumen (pestaña de abajo)
+// =====================================================================
+const DEC_C = { APLICAR: ['#fbe3e0', '#a12a1f', 'Aplicar'], VIGILAR: ['#fdf1cf', '#7a5600', 'Vigilar'], PROTEGIDO: ['#e3eef9', '#1f4e7a', 'Protegido'], 'NO APLICAR': ['#e5f0e0', '#2f5e23', 'Sin riesgo'], 'SOLO CLIMA': ['#eee', '#555', '—'] };
+const celDec = d => { const c = DEC_C[d]; return c ? `<td style="text-align:center"><span style="background:${c[0]};color:${c[1]};border-radius:6px;padding:2px 6px;font-weight:600;white-space:nowrap">${c[2]}</span></td>` : '<td style="text-align:center">—</td>'; };
+async function vAgroclima() {
+  const lotes = DB.lotes.filter(l => l.activo !== false && loteCompleto(l));
+  const potDe = l => String(l.nombre || '').split(' · ')[0].trim().toUpperCase(), hoy = hoyStr();
+  const porPot = ls => { const g = {}; ls.forEach(l => (g[potDe(l)] = g[potDe(l)] || []).push(l)); Object.values(g).forEach(a => a.sort((x, y) => String(x.numero_control).localeCompare(String(y.numero_control), 'es', { numeric: true }))); return Object.keys(g).sort().map(k => [k, g[k]]); };
+  const papa = porPot(lotes.filter(l => l.cultivo === 'papa')), cer = porPot(lotes.filter(l => l.cultivo !== 'papa'));
+  if (!lotes.length) { V().innerHTML = '<div class="card vacio">No hay lotes activos con ubicación y fecha de plantación.</div>'; return; }
+  const thP = '<tr><th>N° control</th><th style="text-align:left">Variedad</th><th style="text-align:left">Etapa</th><th>GD</th><th>Tizón</th><th>Altern.</th><th>Botritis</th><th style="text-align:left">Para aplicar</th><th style="text-align:left">Última aplicación</th><th style="text-align:left">SAG</th></tr>';
+  const thC = '<tr><th>N° control</th><th style="text-align:left">Cultivo · variedad</th><th style="text-align:left">Etapa</th><th>GD</th><th>Riesgo</th><th style="text-align:left">Última aplicación</th><th style="text-align:left">SAG</th></tr>';
+  const cuerpo = (G, nc) => G.map(([k, ls]) => `<tr><td colspan="${nc}" style="text-align:left;background:var(--bg2,#f3f4ef);font-weight:700;padding-top:8px">${esc(k)} <span class="tiny" style="font-weight:400">· ${ls.length} sol. · ${n1(ls.reduce((t, l) => t + (+l.superficie_ha || 0), 0))} ha</span></td></tr>${ls.map(l => `<tr data-id="${l.id}" style="cursor:pointer"><td><b>${esc(l.numero_control || '—')}</b></td>${'<td class="tiny">…</td>'.repeat(nc - 1)}</tr>`).join('')}`).join('');
+  V().innerHTML = `<div class="card" id="ag_cli"><h2>Clima de la zona hoy</h2><div class="tiny"><span class="spin"></span></div></div>
+    <div class="card" id="ag_rie"><h2>Riesgos</h2><div class="tiny"><span class="spin"></span> Calculando todas las solicitudes…</div></div>
+    <div class="card" id="ag_afi"><h2>Vuelo de pulgones</h2><div class="tiny"><span class="spin"></span></div></div>
+    ${papa.length ? `<div class="card"><h2>Cuadro resumen · Papa</h2><div class="tiny" id="ag_prog"><span class="spin"></span> Calculando…</div><div style="overflow-x:auto;margin-top:6px"><table class="tabla" id="ag_tp"><thead>${thP}</thead><tbody>${cuerpo(papa, 10)}</tbody></table></div><div class="tiny" style="margin-top:6px">Toca una fila para abrir la solicitud. "Para aplicar": atrasadas y las de los próximos 7 días según el calendario.</div></div>` : ''}
+    ${cer.length ? `<div class="card"><h2>Cuadro resumen · Cereales</h2><div style="overflow-x:auto;margin-top:6px"><table class="tabla" id="ag_tc"><thead>${thC}</thead><tbody>${cuerpo(cer, 7)}</tbody></table></div></div>` : ''}`;
+  V().querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { const l = DB.lotes.find(x => x.id === tr.dataset.id); ir(() => vLote(l.id), l.nombre, true); });
+  pintarAfidos('#ag_afi', true);
+  const R = { enf: { tizon: {}, alternaria: {}, botritis: {} }, cer: {}, atr: 0, prox: 0, sag: [] };
+  let ref = null, n = 0; const tot = lotes.length;
+  for (const [, ls] of papa.concat(cer)) for (const l of ls) {
+    const tr = V().querySelector(`tr[data-id="${l.id}"]`); if (!tr) return;
+    try {
+      const c = await climaLote(l, false), A = analizarLote(l, c.h), et = A.et, en = A.dec.enfermedades || {};
+      if (!ref && l.cultivo === 'papa') ref = { l, A };
+      const ap = DB.apps.filter(a => a.lote_id === l.id).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))), u = ap[0];
+      const ult = u ? `${fFecha(u.fecha)} ${esc(ap.filter(a => String(a.fecha).slice(0, 10) === String(u.fecha).slice(0, 10)).map(a => a.producto).join(', '))}` : '—';
+      const ins = inspeccionesLote(l, A).find(x => x.estado !== 'pasó'), sag = ins ? `${ins.estado === 'ahora' ? '<b>Ahora</b> ' : ''}${esc(ins.t.split(' (')[0])}${ins.estado === 'viene' ? ' · ' + fFecha(ins.fa.f) : ''}` : '—';
+      if (ins && ins.estado === 'ahora') R.sag.push(l);
+      const etq = et ? `<span style="display:inline-flex;align-items:center;gap:3px">${dibujoEtapa(l.cultivo, et.i, 26)}${esc(et.actual)}</span>` : '—';
+      let h = `<td><b>${esc(l.numero_control || '—')}</b></td>`;
+      if (l.cultivo === 'papa') {
+        const E = estadoApps(l); R.atr += E.atras.length; R.prox += E.prox.length;
+        ['tizon', 'alternaria', 'botritis'].forEach(k => { const d = en[k] && en[k].decision; if (d) (R.enf[k][d] = R.enf[k][d] || []).push(l); });
+        const pa = [E.atras.length ? `<b style="color:var(--bad)">${E.atras.length} atrasada${E.atras.length > 1 ? 's' : ''}</b>` : '', E.prox.length ? `${fFecha(E.prox[0].fecha)} ${esc([...new Set(E.prox.filter(e => e.fecha === E.prox[0].fecha).map(e => String(e.prod).split(/ \(| o /)[0]))].join(', '))}` : ''].filter(Boolean).join('<br>') || '—';
+        h += `<td style="text-align:left">${esc(l.variedad || '')}</td><td style="text-align:left">${etq}</td><td>${n0(A.hd ? A.hd.gdAc : 0)}</td>${['tizon', 'alternaria', 'botritis'].map(k => celDec(en[k] && en[k].decision)).join('')}<td style="text-align:left" class="tiny">${pa}</td><td style="text-align:left" class="tiny">${ult}</td><td style="text-align:left" class="tiny">${sag}</td>`;
+      } else {
+        (R.cer[A.dec.global] = R.cer[A.dec.global] || []).push(l);
+        h += `<td style="text-align:left">${CULTIVOS[l.cultivo]}${l.variedad ? ' · ' + esc(l.variedad) : ''}</td><td style="text-align:left">${etq}</td><td>${n0(A.hd ? A.hd.gdAc : 0)}</td>${celDec(A.dec.global)}<td style="text-align:left" class="tiny">${ult}</td><td style="text-align:left" class="tiny">${sag}</td>`;
+      }
+      tr.innerHTML = h;
+    } catch (e) { tr.lastElementChild.textContent = e.message; }
+    n++; const pr = $('#ag_prog'); if (pr) pr.innerHTML = n < tot ? `<span class="spin"></span> Calculando ${n} de ${tot}…` : `${tot} solicitudes · clima al ${fFechaL(hoy)}`;
+    if (n === 1 || n === tot) pintarAgroCli(ref);
+  }
+  // riesgos (resumen de todo lo entrelazado)
+  const ctl = l => 'N° ' + (l.numero_control || '—');
+  const linea = (t, k) => { const o = R.enf[k], a = o.APLICAR || [], v = o.VIGILAR || []; return `<div class="vent"><span><b>${t}</b><br><span class="tiny">${a.length ? 'Aplicar en ' + a.map(ctl).join(', ') : v.length ? 'Vigilar ' + v.length + ' solicitudes' : 'Sin riesgo en papa'}</span></span>${celDec(a.length ? 'APLICAR' : v.length ? 'VIGILAR' : 'NO APLICAR').replace(/<\/?td[^>]*>/g, '')}</div>`; };
+  const A0 = ref && ref.A, D = A0 ? A0.pas.slice(-7) : [], F3 = A0 ? A0.fut.slice(0, 4) : [], est = [];
+  if (A0) {
+    const tope = (CFG.papa && CFG.papa.tope) || 29, cal = F3.filter(d => d.tmax >= tope), hel = A0.fut.slice(0, 8).filter(d => d.tmin <= 1), et7 = D.reduce((t, d) => t + (d.et0 || 0), 0), pp7 = D.reduce((t, d) => t + (d.pp || 0), 0);
+    if (cal.length) est.push(`Calor ≥ ${tope} °C: ${cal.map(d => fFecha(d.fecha)).join(', ')}`);
+    if (hel.length) est.push(`Helada: ${hel.map(d => `${fFecha(d.fecha)} (${n1(d.tmin)} °C)`).join(', ')}`);
+    if (et7 > 0 && pp7 - et7 < -10) est.push(`Falta de agua: ${n0(pp7 - et7)} mm en 7 días (lluvia ${n0(pp7)}, evapotranspiración ${n0(et7)})`);
+  }
+  const cerA = (R.cer.APLICAR || []).length, cerV = (R.cer.VIGILAR || []).length;
+  const rie = $('#ag_rie'); if (rie) rie.innerHTML = `<h2>Riesgos</h2>${papa.length ? linea('Tizón tardío', 'tizon') + linea('Alternaria', 'alternaria') + linea('Botritis', 'botritis') : ''}
+    ${cer.length ? `<div class="vent"><span><b>Cereales</b><br><span class="tiny">${cerA ? 'Aplicar en ' + R.cer.APLICAR.map(ctl).join(', ') : cerV ? 'Vigilar ' + cerV + ' solicitudes' : 'Sin riesgo'}</span></span>${celDec(cerA ? 'APLICAR' : cerV ? 'VIGILAR' : 'NO APLICAR').replace(/<\/?td[^>]*>/g, '')}</div>` : ''}
+    <div class="vent"><span><b>Estrés del cultivo</b><br><span class="tiny">${est.length ? est.map(esc).join('<br>') : 'Sin calor, helada ni falta de agua'}</span></span>${celDec(est.length ? 'VIGILAR' : 'NO APLICAR').replace(/<\/?td[^>]*>/g, '')}</div>
+    ${papa.length ? `<div class="vent"><span><b>Calendario de aplicaciones</b><br><span class="tiny">${R.atr} atrasadas · ${R.prox} en los próximos 7 días</span></span>${celDec(R.atr ? 'VIGILAR' : 'NO APLICAR').replace(/<\/?td[^>]*>/g, '')}</div>` : ''}
+    <div class="vent"><span><b>Inspección SAG</b><br><span class="tiny">${R.sag.length ? 'En período ahora: ' + R.sag.map(ctl).join(', ') : 'Ninguna en período ahora'}</span></span></div>`;
+}
+function pintarAgroCli(ref) {
+  const el = $('#ag_cli'); if (!el) return; if (!ref) { el.innerHTML = '<h2>Clima de la zona hoy</h2><div class="tiny">Sin lotes de papa con clima.</div>'; return; }
+  const A = ref.A, d = A.hd || {}, ca = condAplicar(A), fut = A.fut.filter(x => x.fecha > hoyStr()).slice(0, 5), vmax = CFG.aplicacion.vientoMax;
+  el.innerHTML = `<h2>Clima de la zona hoy</h2><div class="tiny">Según ${esc(String(ref.l.nombre).split(' · ')[0])}.</div>
+    <div class="grid3" style="margin-top:8px"><div class="kpi"><b>${n0(d.tmin)}–${n0(d.tmax)} °C</b><span>mín – máx</span></div><div class="kpi"><b>${n1(d.pp || 0)} mm</b><span>lluvia</span></div><div class="kpi"><b>${n0(d.viento || 0)} km/h</b><span>viento máx</span></div></div>
+    ${ca ? `<div class="${ca.hay ? 'okmsg' : 'aviso'}" style="margin-top:8px"><b>${ca.hay ? 'Hay condiciones para aplicar' : 'No hay condiciones para aplicar'}</b><br>${esc(ca.txt)}</div>` : ''}
+    <div style="overflow-x:auto;margin-top:8px"><table class="tabla"><thead><tr><th>Día</th><th>Mín/Máx</th><th>Lluvia</th><th>Viento</th></tr></thead><tbody>${fut.map(x => `<tr><td>${fFechaL(x.fecha)}</td><td>${n0(x.tmin)}/${n0(x.tmax)} °C</td><td>${n1(x.pp)} mm</td><td>${n0(x.viento)} km/h${x.viento >= vmax ? ' ⚠' : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---------- Copiar y pegar (o reemplazar) aplicaciones entre potreros ----------
+const PORTA = { get: () => LS.get('ac_porta', null), set: v => LS.set('ac_porta', v) };
+const CAMPOS_APP = ['producto', 'ingrediente', 'grupo', 'clase', 'dosis_ha', 'unidad', 'mojamiento', 'carencia_dias'];
+function copiarApps(ls, titulo) {
+  const g = {};
+  DB.apps.filter(a => ls.some(l => l.id === a.lote_id)).forEach(a => { const f = String(a.fecha).slice(0, 10), k = `${f}|${String(a.producto || '').toLowerCase()}|${a.dosis_ha}`; (g[k] = g[k] || { f, a, n: 0 }).n++; });
+  const L = Object.values(g).sort((x, y) => x.f < y.f ? 1 : x.f > y.f ? -1 : String(x.a.producto).localeCompare(String(y.a.producto)));
+  if (!L.length) { toast('Este potrero no tiene aplicaciones registradas'); return; }
+  const ult = L[0].f, fechas = [...new Set(L.map(x => x.f))];
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:420px;margin:4vh auto 0;max-height:92vh;overflow:auto"><h2 style="margin-bottom:2px">Copiar aplicaciones</h2><div class="tiny">${esc(titulo)} · marca las que quieres copiar</div>
+    <div class="row wrap" style="gap:6px;margin-top:8px"><button class="btn sec chipSel on" data-cs="ult" style="padding:6px 10px">Última fecha</button><button class="btn sec chipSel" data-cs="todo" style="padding:6px 10px">Todas</button><button class="btn sec chipSel" data-cs="nada" style="padding:6px 10px">Ninguna</button></div>
+    ${fechas.map(f => `<div class="sub" style="margin-top:10px">${fFechaL(f)}</div>${L.map((x, i) => x.f !== f ? '' : `<label class="vent" style="align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-ci="${i}" ${x.f === ult ? 'checked' : ''} style="width:auto;margin:0"><span class="grow"><b>${esc(x.a.producto)}</b> <span class="tag">${TIPO_CORTO[x.a.clase] || x.a.clase || ''}</span><br><span class="tiny">${x.a.dosis_ha != null ? n2(x.a.dosis_ha) + ' ' + esc(x.a.unidad || '') : 'sin dosis'} · en ${x.n} solicitud${x.n > 1 ? 'es' : ''}</span></span></label>`).join('')}`).join('')}
+    <button class="btn blk" id="cp_ok" style="margin-top:12px">Copiar</button><button class="btn sec blk" id="cp_x" style="margin-top:8px">Cancelar</button></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#cp_x').onclick = () => ov.remove();
+  ov.querySelectorAll('[data-cs]').forEach(b => b.onclick = () => { ov.querySelectorAll('[data-cs]').forEach(x => x.classList.toggle('on', x === b)); ov.querySelectorAll('[data-ci]').forEach(c => c.checked = b.dataset.cs === 'todo' || (b.dataset.cs === 'ult' && L[+c.dataset.ci].f === ult)); });
+  ov.querySelector('#cp_ok').onclick = () => {
+    const sel = [...ov.querySelectorAll('[data-ci]:checked')].map(c => L[+c.dataset.ci]);
+    if (!sel.length) { toast('Marca al menos una aplicación'); return; }
+    PORTA.set({ origen: titulo, ts: Date.now(), items: sel.map(x => Object.assign({ fecha: x.f }, Object.fromEntries(CAMPOS_APP.map(k => [k, x.a[k] ?? null])))) });
+    ov.remove(); toast(`${sel.length} aplicaci${sel.length > 1 ? 'ones copiadas' : 'ón copiada'}. Toca "Pegar" en otro potrero.`);
+    if (ir._act && ir._act.fn) ir._act.fn();
+  };
+}
+function pegarApps(ls, titulo) {
+  const P = PORTA.get(); if (!P || !P.items.length) { toast('No hay aplicaciones copiadas'); return; }
+  const hoy = hoyStr(), ay = M.sumarDias(hoy, -1), varias = new Set(P.items.map(x => x.fecha)).size > 1;
+  const ov = document.createElement('div'); ov.className = 'ovl';
+  ov.innerHTML = `<div class="card" style="max-width:420px;margin:4vh auto 0;max-height:92vh;overflow:auto"><h2 style="margin-bottom:2px">Pegar aplicaciones</h2><div class="tiny">Copiadas de ${esc(P.origen)} → ${esc(titulo)}</div>
+    <div class="sub" style="margin-top:8px">Solicitudes</div>${ls.map(l => `<label class="chk" style="display:flex;gap:6px;margin:4px 0"><input type="checkbox" data-pl="${l.id}" checked style="width:auto;margin:0">N° ${esc(l.numero_control || '—')} · ${esc(l.variedad || '')} <span class="tiny">${+l.superficie_ha ? n1(l.superficie_ha) + ' ha' : ''}</span></label>`).join('')}
+    <div class="sub" style="margin-top:8px">Fecha</div><div class="row wrap" style="gap:6px"><button class="btn sec chipSel on" data-pf="hoy" style="padding:6px 10px">Hoy</button><button class="btn sec chipSel" data-pf="ay" style="padding:6px 10px">Ayer</button><button class="btn sec chipSel" data-pf="orig" style="padding:6px 10px">${varias ? 'Fechas originales' : 'Misma fecha (' + fFecha(P.items[0].fecha) + ')'}</button></div><input type="date" id="pg_f" value="${hoy}" max="${hoy}" style="margin-top:6px">
+    <div class="sub" style="margin-top:10px">Productos</div>${P.items.map((x, i) => `<div class="vent" style="align-items:center;gap:8px"><label style="display:flex;gap:8px;align-items:center;flex:1"><input type="checkbox" data-pi="${i}" checked style="width:auto;margin:0"><span><b>${esc(x.producto)}</b><br><span class="tiny">${fFecha(x.fecha)} · ${TIPO_CORTO[x.clase] || x.clase || ''}</span></span></label><input type="number" step="any" inputmode="decimal" data-pd="${i}" value="${x.dosis_ha ?? ''}" style="width:74px;margin:0"><span class="tiny">${esc(x.unidad || '')}</span></div>`).join('')}
+    <div class="sub" style="margin-top:10px">Si ya hay aplicaciones ese día</div>
+    <label class="chk" style="display:flex;gap:6px;margin:4px 0"><input type="radio" name="pg_m" value="sumar" checked style="width:auto;margin:0">Agregar (dejar las que ya están)</label>
+    <label class="chk" style="display:flex;gap:6px;margin:4px 0"><input type="radio" name="pg_m" value="reemp" style="width:auto;margin:0">Reemplazar (borrar las de ese día y poner estas)</label>
+    <div class="tiny" id="pg_info"></div>
+    <button class="btn blk" id="pg_ok" style="margin-top:12px">Pegar</button><button class="btn sec blk" id="pg_x" style="margin-top:8px">Cancelar</button></div>`;
+  document.body.appendChild(ov);
+  let modoF = 'hoy';
+  const fechaDe = x => modoF === 'orig' ? x.fecha : ov.querySelector('#pg_f').value || hoy;
+  const info = () => { const sel = [...ov.querySelectorAll('[data-pl]:checked')].map(c => c.dataset.pl), fs = new Set([...ov.querySelectorAll('[data-pi]:checked')].map(c => fechaDe(P.items[+c.dataset.pi]))), ya = DB.apps.filter(a => sel.includes(a.lote_id) && fs.has(String(a.fecha).slice(0, 10)));
+    ov.querySelector('#pg_info').innerHTML = ya.length ? `Esas solicitudes ya tienen ${ya.length} aplicaci${ya.length > 1 ? 'ones' : 'ón'} ese día: ${esc([...new Set(ya.map(a => a.producto))].join(', '))}.` : 'Esas solicitudes no tienen aplicaciones ese día.'; };
+  ov.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => { ov.querySelectorAll('[data-pf]').forEach(x => x.classList.toggle('on', x === b)); modoF = b.dataset.pf; const i = ov.querySelector('#pg_f'); i.style.display = modoF === 'orig' ? 'none' : ''; if (modoF !== 'orig') i.value = modoF === 'ay' ? ay : hoy; info(); });
+  ov.querySelector('#pg_f').onchange = () => { modoF = 'otra'; ov.querySelectorAll('[data-pf]').forEach(x => x.classList.remove('on')); info(); };
+  ov.querySelectorAll('[data-pl],[data-pi]').forEach(c => c.onchange = info); info();
+  ov.querySelector('#pg_x').onclick = () => ov.remove();
+  ov.querySelector('#pg_ok').onclick = () => {
+    const sel = ls.filter(l => ov.querySelector(`[data-pl="${l.id}"]`).checked), its = P.items.map((x, i) => ({ x, i })).filter(({ i }) => ov.querySelector(`[data-pi="${i}"]`).checked);
+    if (!sel.length || !its.length) { toast('Marca al menos una solicitud y un producto'); return; }
+    const reemp = ov.querySelector('[name="pg_m"]:checked').value === 'reemp', fs = new Set(its.map(({ x }) => fechaDe(x)));
+    if ([...fs].some(f => f > hoy)) { toast('La fecha no puede ser futura'); return; }
+    const borrar = reemp ? DB.apps.filter(a => sel.some(l => l.id === a.lote_id) && fs.has(String(a.fecha).slice(0, 10))) : [];
+    if (borrar.length && !confirm(`Se borrarán ${borrar.length} aplicaciones de esas fechas y se pondrán las copiadas. ¿Seguir?`)) return;
+    borrar.forEach(a => borrarRegistro('apps', a.id));
+    let n = 0;
+    sel.forEach(l => its.forEach(({ x, i }) => { const d = numOrNull(ov.querySelector(`[data-pd="${i}"]`).value); guardarRegistro('apps', Object.assign({ id: uid(), lote_id: l.id, superficie_ha: +l.superficie_ha || null, created_at: new Date().toISOString() }, Object.fromEntries(CAMPOS_APP.map(k => [k, x[k]])), { fecha: fechaDe(x), dosis_ha: d, notas: `✓ Copiada de ${P.origen}.` })); n++; }));
+    ov.remove(); toast(`${n} aplicaci${n > 1 ? 'ones pegadas' : 'ón pegada'}${borrar.length ? ` (${borrar.length} reemplazadas)` : ''}`);
     if (ir._act && ir._act.fn) ir._act.fn();
   };
 }
